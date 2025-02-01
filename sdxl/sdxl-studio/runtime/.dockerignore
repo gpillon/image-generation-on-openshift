@@ -1,0 +1,5 @@
+Containerfile
+Pipfile
+Pipfile.lock
+.env
+.venv
