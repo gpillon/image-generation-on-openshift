@@ -1,0 +1,11 @@
+{
+  "app_title": "Open Data Hub SDXL Mini Studio.",
+  "app_header": {
+    "powered_by": "Powered by",
+    "help": {
+      "header": "Information",
+      "body": "Open Data Hub SDXL Mini Studio.",
+      "footer": "Source code and documentation available at https://github.com/rh-aiservices-bu/image-generation-on-openshift"
+    }
+  }
+}
