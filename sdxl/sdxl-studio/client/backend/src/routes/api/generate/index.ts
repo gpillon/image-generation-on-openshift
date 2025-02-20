@@ -1,8 +1,8 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import axios from 'axios';
 import WebSocket from 'ws';
-import { getSDXLEndpoint } from '../../../utils/config'; // Adjust the import path as needed
-
+import { getSDXLEndpoint, getGuardEnabled } from '../../../utils/config'; // Adjust the import path as needed
+import guard from '../../../services/guard';
 export default async (fastify: FastifyInstance): Promise<void> => {
   const decoder = new TextDecoder('utf-8');
 
@@ -29,6 +29,17 @@ export default async (fastify: FastifyInstance): Promise<void> => {
       height,
       denoising_limit,
     };
+
+    if (getGuardEnabled() === 'true') {
+      const failedGuardCheck = await guard(data);
+      if (failedGuardCheck) {
+        reply.code(403).send({
+          message:
+            'Your query appears to contain inappropriate content. Please rephrase and try again',
+        });
+        return;
+      }
+    }
 
     console.log(
       'Sending request to SDXL endpoint:',

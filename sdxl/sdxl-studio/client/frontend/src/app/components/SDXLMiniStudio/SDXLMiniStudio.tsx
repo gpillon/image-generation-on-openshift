@@ -231,13 +231,14 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
         };
       })
       .catch((error) => {
+        setDocumentRendererVisible(false);
         Emitter.emit('notification', {
           variant: 'warning',
           title: '',
           description:
             'Connection failed with the error: ' +
-            (error.response && error.response.data && error.response.data.message
-              ? error.response.data.message.Code
+            (error.response && error.response.data && error.response.data.message 
+              ? error.response.data.message
               : error.message),
         });
       });
