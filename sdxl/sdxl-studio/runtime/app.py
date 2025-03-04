@@ -5,6 +5,7 @@ import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
+import os
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -16,6 +17,7 @@ from classes import GenerationRequest, GenerationResponse, HealthCheckResponse, 
 from diffusers_model import DiffusersPipeline
 from helpers import logging_config, parse_args
 from latents_preview import process_latents
+from watermark import add_watermark
 
 # Load local env vars if present
 load_dotenv()
@@ -294,13 +296,21 @@ async def worker(worker_id, job_queue, pipeline_instance):
             img_bytes.seek(0)
             encoded_image = base64.b64encode(img_bytes.read()).decode("utf-8")
 
-            job.result = encoded_image
+            # Add watermark to the base64 encoded image if it's enabled 
+            
+            enable_watermark = os.getenv("ENABLE_WATERMARK", "true")
+            if enable_watermark == "true":
+                watermark_text = os.getenv("WATERMARK_TEXT", "AI-generated Image. Demo purposes only. More info at red.ht/maas")
+                watermarked_image = add_watermark(encoded_image, watermark_text)
+                job.result = watermarked_image
+            else:
+                job.result = encoded_image
 
             # Handle the result and notify the client
             await job.notification_queue.put(
                 {
                     "status": "completed",
-                    "image": encoded_image,
+                    "image": job.result,
                     "processing_time": processing_time,
                 }
             )
