@@ -1,11 +1,17 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import { getSDXLEndpoint, setSDXLEndpoint, getParasolMode } from '../../../utils/config';
+import {
+  getSDXLEndpoint,
+  setSDXLEndpoint,
+  getParasolMode,
+  updateLastActivity,
+} from '../../../utils/config';
 import axios from 'axios';
 
 export default async (fastify: FastifyInstance): Promise<void> => {
   // Retrieve endpoint settings
   fastify.get('/sdxl-endpoint', async (req: FastifyRequest, reply: FastifyReply) => {
+    updateLastActivity();
     const endpointUrl = getSDXLEndpoint().sdxlEndpointURL;
     const endpointToken = getSDXLEndpoint().sdxlEndpointToken;
     const settings = {
@@ -18,6 +24,7 @@ export default async (fastify: FastifyInstance): Promise<void> => {
 
   // Update endpoint settings
   fastify.put('/sdxl-endpoint', async (req: FastifyRequest, reply: FastifyReply) => {
+    updateLastActivity();
     const { endpointUrl, endpointToken } = req.body as any;
     setSDXLEndpoint(endpointUrl, endpointToken);
     reply.send({ message: 'Settings updated successfully!' });
@@ -25,6 +32,7 @@ export default async (fastify: FastifyInstance): Promise<void> => {
 
   // Test endpoint connection
   fastify.post('/test-sdxl-endpoint', async (req: FastifyRequest, reply: FastifyReply) => {
+    updateLastActivity();
     const { endpointUrl, endpointToken } = req.body as any;
     try {
       const response = await axios.get(endpointUrl + '/health?user_key=' + endpointToken);

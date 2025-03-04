@@ -1,102 +1,44 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { getLastActivity } from '../utils/config';
+
+const routes = [
+  {
+    path: '/api',
+    handler: async (_req: FastifyRequest, reply: FastifyReply) => {
+      reply.send({ status: 'ok' });
+    },
+  },
+  {
+    path: '/api/kernels',
+    handler: async (_req: FastifyRequest, reply: FastifyReply) => {
+      reply.send([]);
+    },
+  },
+  {
+    path: '/api/terminals',
+    handler: async (_req: FastifyRequest, reply: FastifyReply) => {
+      reply.send(getLastActivity());
+    },
+  },
+];
 
 export default async (fastify: FastifyInstance): Promise<void> => {
+  const prefix = process.env.NB_PREFIX || '';
+
+  // Register all API routes
+  routes.forEach(({ path, handler }) => {
+    fastify.get(`${prefix}${path}`, handler);
+  });
+
+  // Add OpenShift AI specific routes if needed
   if (process.env.NB_PREFIX) {
-    // We are in an OpenShift AI environment with prefixes for the probes...
-    fastify.get(
-      `${process.env.NB_PREFIX}/api`,
-      async (req: FastifyRequest, reply: FastifyReply) => {
-        reply.send({ status: 'ok' });
-      },
-    );
-
-    fastify.get(
-      `${process.env.NB_PREFIX}/api/`,
-      async (req: FastifyRequest, reply: FastifyReply) => {
-        reply.send({ status: 'ok' });
-      },
-    );
-
-    fastify.get(
-      `${process.env.NB_PREFIX}/api/kernels`,
-      async (req: FastifyRequest, reply: FastifyReply) => {
-        const replyData = [
-          {
-            id: 'sdxl-studio',
-            name: 'sdxl-studio',
-            last_activity: new Date().toISOString(),
-            execution_state: 'alive',
-            connections: 1,
-          },
-        ];
-        reply.send(replyData);
-      },
-    );
-
-    fastify.get(
-      `${process.env.NB_PREFIX}/api/kernels/`,
-      async (req: FastifyRequest, reply: FastifyReply) => {
-        const replyData = [
-          {
-            id: 'sdxl-studio',
-            name: 'sdxl-studio',
-            last_activity: new Date().toISOString(),
-            execution_state: 'alive',
-            connections: 1,
-          },
-        ];
-        reply.send(replyData);
-      },
-    );
-
-    // Redirect all other requests to the root...
-    fastify.get(
-      `${process.env.NB_PREFIX}/*`,
-      async (request: FastifyRequest, reply: FastifyReply) => {
-        reply.redirect('/');
-      },
-    );
-
-    fastify.get(
-      `${process.env.NB_PREFIX}`,
-      async (request: FastifyRequest, reply: FastifyReply) => {
-        reply.redirect('/');
-      },
-    );
-  } else {
-    // We are not in an OpenShift AI environment, but let's put the probes in place anyway...
-    fastify.get(`/api`, async (req: FastifyRequest, reply: FastifyReply) => {
-      reply.send({ status: 'ok' });
+    // Redirect all other prefixed requests to root
+    fastify.get(`${prefix}/*`, async (_request: FastifyRequest, reply: FastifyReply) => {
+      reply.redirect('/');
     });
 
-    fastify.get(`/api/`, async (req: FastifyRequest, reply: FastifyReply) => {
-      reply.send({ status: 'ok' });
-    });
-
-    fastify.get(`/api/kernels`, async (req: FastifyRequest, reply: FastifyReply) => {
-      const replyData = [
-        {
-          id: 'sdxl-studio',
-          name: 'sdxl-studio',
-          last_activity: new Date().toISOString(),
-          execution_state: 'alive',
-          connections: 1,
-        },
-      ];
-      reply.send(replyData);
-    });
-
-    fastify.get(`/api/kernels/`, async (req: FastifyRequest, reply: FastifyReply) => {
-      const replyData = [
-        {
-          id: 'sdxl-studio',
-          name: 'sdxl-studio',
-          last_activity: new Date().toISOString(),
-          execution_state: 'alive',
-          connections: 1,
-        },
-      ];
-      reply.send(replyData);
+    fastify.get(prefix, async (_request: FastifyRequest, reply: FastifyReply) => {
+      reply.redirect('/');
     });
   }
 };

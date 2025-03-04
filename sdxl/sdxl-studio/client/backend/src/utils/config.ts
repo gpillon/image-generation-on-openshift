@@ -1,9 +1,9 @@
 // Initial configuration
+const parasolMode = process.env.PARASOL_MODE || 'false';
 let sdxlEndpointURL = process.env.SDXL_ENDPOINT_URL || '';
 let sdxlEndpointToken = process.env.SDXL_ENDPOINT_TOKEN || '';
 let guardEndpointURL = process.env.GUARD_ENDPOINT_URL || '';
 let guardEndpointToken = process.env.GUARD_ENDPOINT_TOKEN || '';
-const parasolMode = process.env.PARASOL_MODE || 'false';
 let guardEnabled = process.env.GUARD_ENABLED || 'true';
 const guardModel = process.env.GUARD_MODEL || 'granite3-guardian-2b';
 const guardTemp = process.env.GUARD_TEMP || '0.7';
@@ -14,6 +14,7 @@ const safetyCheckEndpointToken = process.env.SAFETY_CHECK_ENDPOINT_TOKEN || '';
 const safetyCheckModel = process.env.SAFETY_CHECK_MODEL || 'safety-checker';
 
 import { GuardConfig, SafetyCheckConfig } from '../schema/config';
+import { LastActivity } from '../schema/activity';
 
 export const getSDXLEndpoint = (): any => {
   return {
@@ -68,4 +69,24 @@ export const getSafetyCheckConfig = (): SafetyCheckConfig => {
     safetyCheckEndpointToken,
     safetyCheckEndpointURL,
   };
+};
+
+let lastActivity: LastActivity[] = [
+  {
+    name: '1',
+    last_activity: new Date().toISOString(),
+  },
+];
+
+export const getLastActivity = (): LastActivity[] => {
+  return lastActivity;
+};
+
+export const updateLastActivity = (): void => {
+  lastActivity = [
+    {
+      name: '1',
+      last_activity: new Date().toISOString(),
+    },
+  ];
 };
