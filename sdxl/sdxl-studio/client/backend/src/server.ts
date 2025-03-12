@@ -32,6 +32,7 @@ const app = fastify({
   ),
   pluginTimeout: 10000,
   maxParamLength: 1000,
+  ignoreTrailingSlash: true,
 });
 
 app.register(cors, {
