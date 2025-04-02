@@ -1,4 +1,4 @@
-# Open Data Hub SDXL Mini Studio
+# SDXL Mini Studio
 
 Basic application to interact with an SDXL model served using OpenShift AI.
 
@@ -17,17 +17,17 @@ It can be imported as a custom workbench in ODH or RHOAI, used in a standard Ope
 
 - An admin must Import the custom image.
 - Create the Workbench (1 CPU/2GB RAM is more than enough).
-- Optionally create environment variables to connect to the inference endpoint:
+- Create environment variables to connect to the inference endpoint (`SDXL_ENDPOINT_*` are mandatory):
   - `SDXL_ENDPOINT_URL`: for example `https://your-endpoint.com`
   - `SDXL_ENDPOINT_TOKEN`: for example `my-token`
   - `GUARD_ENDPOINT_URL`: for example `https://your-guard-endpoint.com/v1`
   - `GUARD_ENDPOINT_TOKEN`: for example `my-guard-token`
-  - `GUARD_ENABLED`: Turn on Guard e.g. 'true' default 'false'
+  - `GUARD_ENABLED`: Turn on Guard e.g. 'true' default 'true'
   - `GUARD_TEMP`: e.g. '1.0' default '0.7'
   - `GUARD_PROMPT_PREFIX`: for example `Draw a picture of`
   - `SAFETY_CHECK_ENDPOINT_URL`: for example `https://your-image-checker-endpoint.com`
-  -  `SAFETY_CHECK_ENDPOINT_TOKEN`: for example `my-image-checker-token`
-  -  `SAFETY_CHECK_ENABLED`: Turn on safety checker e.g. 'true' default 'false'
+  - `SAFETY_CHECK_ENDPOINT_TOKEN`: for example `my-image-checker-token`
+  - `SAFETY_CHECK_ENABLED`: Turn on safety checker e.g. 'true' default 'true'
 
 - If you don't set the above values, you can enter them in the application later on in the Settings menu. However, those custom values will be valid only as long as the pod is running.
 
