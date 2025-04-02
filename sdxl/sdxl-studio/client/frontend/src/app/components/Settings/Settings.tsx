@@ -1,12 +1,11 @@
+import SDLogo from '@app/assets/bgimages/stabilityai-logo.svg';
 import config from '@app/config';
+import { Button, Flex, FlexItem, Form, FormGroup, Page, PageSection, Tab, Tabs, TabTitleIcon, TabTitleText, Text, TextContent, TextInput, TextInputGroup, TextInputGroupMain, TextInputGroupUtilities, TextVariants } from '@patternfly/react-core';
+import { EyeIcon } from '@patternfly/react-icons';
 import axios from 'axios';
 import * as React from 'react';
 import { useHistory, useLocation, useParams } from 'react-router-dom';
 import Emitter from '../../utils/emitter';
-import { Page, PageSection, Text, TextContent, TextVariants, Form, FormGroup, Button, TextInput, TextInputGroup, TextInputGroupMain, TextInputGroupUtilities, Flex, FlexItem, TabTitleIcon, Slider, SliderOnChangeEvent } from '@patternfly/react-core';
-import { Tabs, Tab, TabTitleText } from '@patternfly/react-core';
-import { EyeIcon } from '@patternfly/react-icons';
-import SDLogo from '@app/assets/bgimages/stabilityai-logo.svg';
 
 interface SettingsProps { }
 

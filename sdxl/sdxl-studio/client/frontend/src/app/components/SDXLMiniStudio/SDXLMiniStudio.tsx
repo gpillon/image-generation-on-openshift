@@ -1,11 +1,11 @@
 import config from '@app/config';
-import * as React from 'react';
-import axios from 'axios';
-import Emitter from '../../utils/emitter';
-import DocumentRenderer from '../DocumentRenderer/DocumentRenderer';
-import { Page, PageSection, Text, TextContent, TextVariants, Flex, FlexItem, Button, Card, Form, FormGroup, CardTitle, CardBody, TextArea, ActionGroup, FormSelect, FormSelectOption, Slider, SliderOnChangeEvent, Popover, Progress, ProgressMeasureLocation } from '@patternfly/react-core';
+import { ActionGroup, Button, Card, CardBody, CardTitle, Flex, FlexItem, Form, FormGroup, FormSelect, FormSelectOption, Page, PageSection, Popover, Progress, ProgressMeasureLocation, Slider, SliderOnChangeEvent, Text, TextArea, TextContent, TextVariants } from '@patternfly/react-core';
 import { HelpIcon } from '@patternfly/react-icons';
 import styles from '@patternfly/react-styles/css/components/Form/form';
+import axios from 'axios';
+import * as React from 'react';
+import Emitter from '../../utils/emitter';
+import DocumentRenderer from '../DocumentRenderer/DocumentRenderer';
 
 interface SDXLMiniStudioProps { }
 

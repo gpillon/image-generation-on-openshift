@@ -1,15 +1,17 @@
-import config from '@app/config';
+import imgAvatar from '@app/assets/bgimages/default-user.svg';
 import logo from '@app/assets/bgimages/empty.svg';
-import parasolLogo from '@app/assets/bgimages/parasol-logo.svg';
-import githubLogo from '@app/assets/bgimages/github-mark-white.svg';
-import starLogo from '@app/assets/bgimages/star.svg';
 import forkLogo from '@app/assets/bgimages/fork.svg';
+import githubLogo from '@app/assets/bgimages/github-mark-white.svg';
+import parasolLogo from '@app/assets/bgimages/parasol-logo.svg';
+import starLogo from '@app/assets/bgimages/star.svg';
+import config from '@app/config';
 import { IAppRoute, IAppRouteGroup, routes } from '@app/routes';
 import {
   Alert,
   AlertActionCloseButton,
   AlertGroup,
   AlertProps,
+  Avatar,
   Brand,
   Button,
   ButtonVariant,
@@ -59,11 +61,11 @@ import {
   ToolbarItem
 } from '@patternfly/react-core';
 import { BarsIcon, EllipsisVIcon, QuestionCircleIcon, SearchIcon } from '@patternfly/react-icons';
+import axios from 'axios';
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import Emitter from '../../utils/emitter';
-import axios from 'axios';
 
 interface IAppLayout {
   children: React.ReactNode;
@@ -72,6 +74,9 @@ interface IAppLayout {
 const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
 
   const [parasolMode, setParasolMode] = React.useState(false);
+  const [repoStars, setRepoStars] = React.useState<number | null>(null);
+  const [repoForks, setRepoForks] = React.useState<number | null>(null);
+  const [userName, setUserName] = React.useState<string>('');
 
   interface NotificationProps {
     title: string;
@@ -83,9 +88,7 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
     isNotificationRead: boolean;
   }
 
-  const [repoStars, setRepoStars] = React.useState<number | null>(null);
-  const [repoForks, setRepoForks] = React.useState<number | null>(null);
-
+  // Fetch settings
   React.useEffect(() => {
     axios.get(`${config.backend_api_url}/settings/parasol-mode`)
       .then((response) => {
@@ -109,6 +112,29 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
     };
   }, []);
 
+  // Fetch user name
+  React.useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        // Get headers from current page
+        const response = await fetch(window.location.href, { 
+          method: 'HEAD',
+          credentials: 'same-origin' // Include cookies in the request
+        });
+        
+        const entries = [...response.headers.entries()];
+        const gapAuthHeader = entries.find(entry => entry[0] === 'gap-auth');
+        const gapAuthValue = gapAuthHeader ? gapAuthHeader[1] : '';
+        setUserName(gapAuthValue);
+        
+      } catch (error) {
+        console.error('Error fetching user info:', error);
+      }
+    }
+    fetchUserInfo();
+  }, []);
+
+  // Fetch GitHub stars and forks
   React.useEffect(() => {
     axios.get('https://api.github.com/repos/rh-aiservices-bu/image-generation-on-openshift')
       .then((response) => {
@@ -135,9 +161,7 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
   }, [selectedLanguage]);
 
 
-
   const location = useLocation();
-
 
   const renderNavItem = (route: IAppRoute, index: number) => (
     <NavItem key={`${route.label}-${index}`} id={`${route.label}-${index}`} isActive={route.path.split('/')[1] === location.pathname.split('/')[1]} className='navitem-flex'>
@@ -187,8 +211,8 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
             PoC App by <a href='http://red.ht/cai-team' target='_blank'>red.ht/cai-team</a>
             <br />
             <Flex direction={{ default: 'column' }} style={{ width: '100%', alignItems: 'center' }}>
-                <FlexItem style={{ marginBottom: '0rem' }}>
-                  <Flex direction={{ default: 'row' }} alignItems={{ default: 'alignItemsCenter' }}>
+              <FlexItem style={{ marginBottom: '0rem' }}>
+                <Flex direction={{ default: 'row' }} alignItems={{ default: 'alignItemsCenter' }}>
                   <a href='https://github.com/rh-aiservices-bu/image-generation-on-openshift' target='_blank' style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '0.5rem' }}>
                     <FlexItem>
                       <img src={githubLogo} alt="GitHub Logo" style={{ height: '20px', marginRight: '0.5rem' }} />
@@ -196,20 +220,20 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
                     <FlexItem>
                       <Text>Source on GitHub</Text>
                     </FlexItem>
-                    </a>
-                  </Flex>
-                </FlexItem>
+                  </a>
+                </Flex>
+              </FlexItem>
               <FlexItem>
                 <Flex direction={{ default: 'row' }}>
                   <FlexItem style={{ alignmentBaseline: 'middle' }}>
                     {repoStars !== null &&
-                      <img src={starLogo} alt="Star Logo" style={{ height: '15px', marginRight: '0.5rem', verticalAlign:'text-top' }} />
+                      <img src={starLogo} alt="Star Logo" style={{ height: '15px', marginRight: '0.5rem', verticalAlign: 'text-top' }} />
                     }
                     {repoStars !== null ? `${repoStars}` : ''}
                   </FlexItem>
                   <FlexItem>
                     {repoStars !== null &&
-                      <img src={forkLogo} alt="Fork Logo" style={{ height: '15px', marginRight: '0.5rem', verticalAlign:'text-top' }} />
+                      <img src={forkLogo} alt="Fork Logo" style={{ height: '15px', marginRight: '0.5rem', verticalAlign: 'text-top' }} />
                     }
                     {repoForks !== null ? `${repoForks}` : ''}
                   </FlexItem>
@@ -500,7 +524,6 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
           align={{ default: 'alignRight' }}
           spacer={{ default: 'spacerMd', md: 'spacerMd' }}
         >
-
           {notificationBadge}
           <ToolbarItem>
             <Popover
@@ -514,6 +537,16 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
             </Popover>
           </ToolbarItem>
         </ToolbarGroup>
+        <ToolbarItem>
+          <TextContent>
+            <Text component={TextVariants.p} className='pf-v5-global--spacer--md'>
+              {userName}
+            </Text>
+          </TextContent>
+        </ToolbarItem>
+        <ToolbarItem>
+          <Avatar src={imgAvatar} alt="" border='light' className='avatar' />
+        </ToolbarItem>
       </ToolbarContent>
     </Toolbar>
   );
