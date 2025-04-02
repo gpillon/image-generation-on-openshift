@@ -1,6 +1,9 @@
 import config from '@app/config';
-import logo from '@app/assets/bgimages/odh-logo.svg';
+import logo from '@app/assets/bgimages/empty.svg';
 import parasolLogo from '@app/assets/bgimages/parasol-logo.svg';
+import githubLogo from '@app/assets/bgimages/github-mark-white.svg';
+import starLogo from '@app/assets/bgimages/star.svg';
+import forkLogo from '@app/assets/bgimages/fork.svg';
 import { IAppRoute, IAppRouteGroup, routes } from '@app/routes';
 import {
   Alert,
@@ -18,6 +21,8 @@ import {
   EmptyStateHeader,
   EmptyStateIcon,
   EmptyStateVariant,
+  Flex,
+  FlexItem,
   Masthead,
   MastheadBrand,
   MastheadContent,
@@ -78,16 +83,19 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
     isNotificationRead: boolean;
   }
 
+  const [repoStars, setRepoStars] = React.useState<number | null>(null);
+  const [repoForks, setRepoForks] = React.useState<number | null>(null);
+
   React.useEffect(() => {
     axios.get(`${config.backend_api_url}/settings/parasol-mode`)
-            .then((response) => {
-                setParasolMode(response.data.parasolMode === 'true');
-                console.log('Parasol mode: ' + parasolMode);
-            })
-            .catch((error) => {
-                console.error(error);
-                Emitter.emit('error', 'Failed to fetch configuration settings.');
-            });
+      .then((response) => {
+        setParasolMode(response.data.parasolMode === 'true');
+        console.log('Parasol mode: ' + parasolMode);
+      })
+      .catch((error) => {
+        console.error(error);
+        Emitter.emit('error', 'Failed to fetch configuration settings.');
+      });
 
     const handleNotification = (data) => {
       addNewNotification(data.variant, data.title, data.description);
@@ -99,6 +107,17 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
     return () => {
       Emitter.off('notification', handleNotification);
     };
+  }, []);
+
+  React.useEffect(() => {
+    axios.get('https://api.github.com/repos/rh-aiservices-bu/image-generation-on-openshift')
+      .then((response) => {
+        setRepoStars(response.data.stargazers_count);
+        setRepoForks(response.data.forks_count);
+      })
+      .catch((error) => {
+        console.error('Failed to fetch GitHub stars:', error);
+      });
   }, []);
 
   /* const [sidebarOpen, setSidebarOpen] = React.useState(true); */
@@ -161,8 +180,45 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
 
   const Sidebar = (
     <PageSidebar theme="dark" >
-      <PageSidebarBody isFilled>
+      <PageSidebarBody isFilled style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {Navigation}
+        <div style={{ marginTop: 'auto', padding: '1rem', textAlign: 'center' }}>
+          <Text component={TextVariants.small}>
+            PoC App by <a href='http://red.ht/cai-team' target='_blank'>red.ht/cai-team</a>
+            <br />
+            <Flex direction={{ default: 'column' }} style={{ width: '100%', alignItems: 'center' }}>
+                <FlexItem style={{ marginBottom: '0rem' }}>
+                  <Flex direction={{ default: 'row' }} alignItems={{ default: 'alignItemsCenter' }}>
+                  <a href='https://github.com/rh-aiservices-bu/image-generation-on-openshift' target='_blank' style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '0.5rem' }}>
+                    <FlexItem>
+                      <img src={githubLogo} alt="GitHub Logo" style={{ height: '20px', marginRight: '0.5rem' }} />
+                    </FlexItem>
+                    <FlexItem>
+                      <Text>Source on GitHub</Text>
+                    </FlexItem>
+                    </a>
+                  </Flex>
+                </FlexItem>
+              <FlexItem>
+                <Flex direction={{ default: 'row' }}>
+                  <FlexItem style={{ alignmentBaseline: 'middle' }}>
+                    {repoStars !== null &&
+                      <img src={starLogo} alt="Star Logo" style={{ height: '15px', marginRight: '0.5rem', verticalAlign:'text-top' }} />
+                    }
+                    {repoStars !== null ? `${repoStars}` : ''}
+                  </FlexItem>
+                  <FlexItem>
+                    {repoStars !== null &&
+                      <img src={forkLogo} alt="Fork Logo" style={{ height: '15px', marginRight: '0.5rem', verticalAlign:'text-top' }} />
+                    }
+                    {repoForks !== null ? `${repoForks}` : ''}
+                  </FlexItem>
+                </Flex>
+              </FlexItem>
+            </Flex>
+
+          </Text>
+        </div>
       </PageSidebarBody>
     </PageSidebar>
   );
@@ -465,13 +521,13 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
   const Header = (
     <Masthead role="banner" aria-label="page masthead">
       <MastheadToggle>
-          <PageToggleButton id="page-nav-toggle" variant="plain" aria-label="Dashboard navigation">
-            <BarsIcon />
-          </PageToggleButton>
-        </MastheadToggle>
+        <PageToggleButton id="page-nav-toggle" variant="plain" aria-label="Dashboard navigation">
+          <BarsIcon />
+        </PageToggleButton>
+      </MastheadToggle>
       <MastheadMain>
         <MastheadBrand>
-          <Brand src={parasolMode?parasolLogo:logo} alt="Patternfly Logo" heights={{ default: '36px' }} />
+          <Brand src={parasolMode ? parasolLogo : logo} alt="Patternfly Logo" heights={{ default: '36px' }} />
           <TextContent>
             <Text component={TextVariants.h2} className='title-text'>Stable Diffusion XL Mini Studio</Text>
           </TextContent>

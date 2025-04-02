@@ -6,8 +6,6 @@ import Emitter from '../../utils/emitter';
 import { Page, PageSection, Text, TextContent, TextVariants, Form, FormGroup, Button, TextInput, TextInputGroup, TextInputGroupMain, TextInputGroupUtilities, Flex, FlexItem, TabTitleIcon, Slider, SliderOnChangeEvent } from '@patternfly/react-core';
 import { Tabs, Tab, TabTitleText } from '@patternfly/react-core';
 import { EyeIcon } from '@patternfly/react-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBucket } from '@fortawesome/free-solid-svg-icons';
 import SDLogo from '@app/assets/bgimages/stabilityai-logo.svg';
 
 interface SettingsProps { }

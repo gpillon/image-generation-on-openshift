@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fs from 'fs';
 import path from 'path';
 
-interface OdhTecConfig {
+interface StudioConfig {
   disclaimer?: {
     status: string;
   };
@@ -15,9 +15,9 @@ export default async (fastify: FastifyInstance): Promise<void> => {
         '/opt/app-root/src/.local/share/sdxl-ministudio/config',
         'utf-8',
       );
-      const odhTecConfig: OdhTecConfig = JSON.parse(configFile);
+      const studioConfig: StudioConfig = JSON.parse(configFile);
       const disclaimer = {
-        status: odhTecConfig.disclaimer.status,
+        status: studioConfig.disclaimer.status,
       };
       reply.send({ disclaimer });
     } catch (error) {
@@ -31,15 +31,15 @@ export default async (fastify: FastifyInstance): Promise<void> => {
   fastify.put('/', async (req: FastifyRequest, reply: FastifyReply) => {
     const { status } = req.body as any;
     const configFilePath = '/opt/app-root/src/.local/share/sdxl-ministudio/config';
-    let odhTecConfig: OdhTecConfig = {};
+    let studioConfig: StudioConfig = {};
 
     try {
       const configFile = await fs.promises.readFile(configFilePath, 'utf-8');
-      odhTecConfig = JSON.parse(configFile);
+      studioConfig = JSON.parse(configFile);
     } catch (error) {
       if (error.code === 'ENOENT') {
         // File does not exist, initialize with an empty object
-        odhTecConfig = {};
+        studioConfig = {};
       } else {
         // Other errors
         reply.code(500).send({ message: 'Error reading config file', error });
@@ -51,11 +51,11 @@ export default async (fastify: FastifyInstance): Promise<void> => {
       status: status,
     };
 
-    odhTecConfig.disclaimer = disclaimer;
+    studioConfig.disclaimer = disclaimer;
 
     try {
       await fs.promises.mkdir(path.dirname(configFilePath), { recursive: true });
-      await fs.promises.writeFile(configFilePath, JSON.stringify(odhTecConfig, null, 2));
+      await fs.promises.writeFile(configFilePath, JSON.stringify(studioConfig, null, 2));
       reply.send({ message: 'Disclaimer status updated' });
     } catch (error) {
       reply.code(500).send({ message: 'Error writing config file', error });

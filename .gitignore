@@ -16,6 +16,8 @@
 node_modules
 logs
 
+__snapshots__
+
 .docs
 .gitkeep
 .eslintcache
