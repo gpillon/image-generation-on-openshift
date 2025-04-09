@@ -135,8 +135,8 @@ class FluxModelPipeline:
             
             # Setup optimization
             _log.info("Setting up VAE optimizations")
-            #pipeline.vae.enable_slicing()
-            #pipeline.vae.enable_tiling()
+            pipeline.vae.enable_slicing()
+            pipeline.vae.enable_tiling()
             
             # Set device if needed (should be handled by device_map)
             if self.device == "cpu":
@@ -170,7 +170,7 @@ class FluxModelPipeline:
     def predict(self, payload: GenerationRequest, callback_func_base: callable, callback_func_refiner: callable = None) -> None:
         # Extract common parameters from the request
         prompt = payload.prompt
-        negative_prompt = getattr(payload, 'negative_prompt', None)
+        #negative_prompt = getattr(payload, 'negative_prompt', None)
         height = getattr(payload, 'height', 1024)
         width = getattr(payload, 'width', 1024)
         num_inference_steps = getattr(payload, 'num_inference_steps', 4)  # Flux works well with fewer steps
@@ -188,7 +188,7 @@ class FluxModelPipeline:
         # Create the image
         result = self.pipeline(
             prompt=prompt,
-            negative_prompt=negative_prompt,
+            #negative_prompt=negative_prompt,
             height=height,
             width=width,
             guidance_scale=guidance_scale,
