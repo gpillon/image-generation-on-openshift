@@ -12,10 +12,14 @@ interface SettingsProps { }
 class EndpointSettings {
     endpointUrl: string;
     endpointToken: string;
+    fluxEndpointUrl: string;
+    fluxEndpointToken: string;
 
-    constructor(endpointURL, endpointToken: string) {
+    constructor(endpointURL, endpointToken: string, fluxEndpointURL, fluxEndpointToken: string) {
         this.endpointUrl = endpointURL ?? '';
         this.endpointToken = endpointToken ?? '';
+        this.fluxEndpointUrl = fluxEndpointURL ?? '';
+        this.fluxEndpointToken = fluxEndpointToken ?? '';
     }
 }
 
@@ -36,17 +40,19 @@ const SettingsManagement: React.FunctionComponent<SettingsProps> = () => {
 
     /* SDXL Settings Management */
 
-    const [endpointSettings, setEndpointSettings] = React.useState<EndpointSettings>(new EndpointSettings('', ''));
+    const [endpointSettings, setEndpointSettings] = React.useState<EndpointSettings>(new EndpointSettings('', '', '', ''));
     const [endpointSettingsChanged, setEndpointSettingsChanged] = React.useState<boolean>(false);
 
     const [showEndpointToken, setEndpointShowToken] = React.useState<boolean>(false);
+    const [showFluxEndpointToken, setFluxEndpointShowToken] = React.useState<boolean>(false);
+    
 
     React.useEffect(() => {
         axios.get(`${config.backend_api_url}/settings/sdxl-endpoint`)
             .then((response) => {
                 const { settings } = response.data;
                 if (settings !== undefined) {
-                    setEndpointSettings(new EndpointSettings(settings.endpointUrl, settings.endpointToken));
+                    setEndpointSettings(new EndpointSettings(settings.endpointUrl, settings.endpointToken, settings.fluxEndpointUrl, settings.fluxEndpointToken));
                 }
             })
             .catch((error) => {
@@ -84,7 +90,8 @@ const SettingsManagement: React.FunctionComponent<SettingsProps> = () => {
             })
             .catch((error) => {
                 console.error(error);
-                Emitter.emit('notification', { variant: 'warning', title: '', description: 'Connection failed with the error: ' + error.response.data.message.error });
+                Emitter.emit('notification', { variant: 'warning', title: '', description: 'Connection failed with the error: ' + /*error.response.data.message.error ||*/ error.response.data.message });
+                console.log(error.response.data);
             });
     }
 
@@ -116,7 +123,7 @@ const SettingsManagement: React.FunctionComponent<SettingsProps> = () => {
                         aria-label="SDXL Endpoint settings">
                         <Form onSubmit={handleSaveEndpointSettings}
                             className='settings-form'>
-                            <FormGroup label="URL" fieldId="url">
+                            <FormGroup label="SDXL URL" fieldId="url">
                                 <TextInput
                                     className='form-settings-long'
                                     value={endpointSettings.endpointUrl}
@@ -125,7 +132,7 @@ const SettingsManagement: React.FunctionComponent<SettingsProps> = () => {
                                     name="endpointUrl"
                                 />
                             </FormGroup>
-                            <FormGroup label="Token" fieldId="token">
+                            <FormGroup label="SDXL Token" fieldId="token">
                                 <TextInputGroup className='form-settings'>
                                     <TextInputGroupMain
                                         value={endpointSettings.endpointToken}
@@ -145,14 +152,46 @@ const SettingsManagement: React.FunctionComponent<SettingsProps> = () => {
                                     </TextInputGroupUtilities>
                                 </TextInputGroup>
                             </FormGroup>
+                            <FormGroup label="Flux URL" fieldId="url">
+                                <TextInput
+                                    className='form-settings-long'
+                                    value={endpointSettings.fluxEndpointUrl}
+                                    onChange={(_event, value) => handleEndpointChange(value, 'fluxEndpointUrl')}
+                                    id="fluxEndpointUrl"
+                                    name="fluxEndpointUrl"
+                                />
+                            </FormGroup>
+                            <FormGroup label="Flux Token" fieldId="fluxToken">
+                                <TextInputGroup className='form-settings'>
+                                    <TextInputGroupMain
+                                        value={endpointSettings.fluxEndpointToken}
+                                        onChange={(_event, value) => handleEndpointChange(value, 'fluxEndpointToken')}
+                                        id="fluxEndpointToken"
+                                        name="fluxEndpointToken"
+                                        type={showFluxEndpointToken ? 'text' : 'password'}
+                                    />
+                                    <TextInputGroupUtilities>
+                                        <Button
+                                            variant="plain"
+                                            aria-label={showFluxEndpointToken ? 'Hide token' : 'Show token'}
+                                            onClick={() => setFluxEndpointShowToken(!showFluxEndpointToken)}
+                                        >
+                                            <EyeIcon />
+                                        </Button>
+                                    </TextInputGroupUtilities>
+                                </TextInputGroup>
+                            </FormGroup>
+                            
+                            
                             <Flex>
                                 <FlexItem>
-                                    <Button type="submit" className='form-settings-submit' isDisabled={!endpointSettingsChanged}>Save SDXL Endpoint Settings</Button>
+                                    <Button type="submit" className='form-settings-submit' isDisabled={!endpointSettingsChanged}>Save Endpoint Settings</Button>
                                 </FlexItem>
                                 <FlexItem>
                                     <Button className='form-settings-submit' onClick={handleTestEndpointConnection}>Test Connection</Button>
                                 </FlexItem>
                             </Flex>
+
                         </Form>
                     </Tab>
                 </Tabs>

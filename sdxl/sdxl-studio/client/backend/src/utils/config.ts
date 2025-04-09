@@ -1,7 +1,9 @@
 // Initial configuration
 const parasolMode = process.env.PARASOL_MODE || 'false';
-let sdxlEndpointURL = process.env.SDXL_ENDPOINT_URL || '';
-let sdxlEndpointToken = process.env.SDXL_ENDPOINT_TOKEN || '';
+let endpointURL = process.env.SDXL_ENDPOINT_URL || '';
+let endpointToken = process.env.SDXL_ENDPOINT_TOKEN || '';
+let fluxEndpointURL = process.env.FLUX_ENDPOINT_URL || '';
+let fluxEndpointToken = process.env.FLUX_ENDPOINT_TOKEN || '';
 let guardEndpointURL = process.env.GUARD_ENDPOINT_URL || '';
 let guardEndpointToken = process.env.GUARD_ENDPOINT_TOKEN || '';
 let guardEnabled = process.env.GUARD_ENABLED || 'true';
@@ -18,9 +20,21 @@ import { LastActivity } from '../schema/activity';
 
 export const getSDXLEndpoint = (): any => {
   return {
-    sdxlEndpointURL: sdxlEndpointURL.replace(/\/$/, ''),
-    sdxlEndpointToken,
+    endpointURL: endpointURL.replace(/\/$/, ''),
+    endpointToken,
   };
+};
+
+export const getFluxEndpoint = (): any => {
+  return {
+    endpointURL: fluxEndpointURL.replace(/\/$/, ''),
+    endpointToken: fluxEndpointToken,
+  };
+};
+
+export const setFluxEndpoint = (url: string, token: string): void => {
+  fluxEndpointURL = url;
+  fluxEndpointToken = token;
 };
 
 export const setGuardEndpoint = (url: string, token: string): void => {
@@ -29,8 +43,8 @@ export const setGuardEndpoint = (url: string, token: string): void => {
 };
 
 export const setSDXLEndpoint = (url: string, token: string): void => {
-  sdxlEndpointURL = url;
-  sdxlEndpointToken = token;
+  endpointURL = url;
+  endpointToken = token;
 };
 
 export const getParasolMode = (): string => {

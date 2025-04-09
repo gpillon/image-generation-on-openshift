@@ -18,6 +18,9 @@ logs
 
 __snapshots__
 
+.venv
+__pycache__
+
 .docs
 .gitkeep
 .eslintcache

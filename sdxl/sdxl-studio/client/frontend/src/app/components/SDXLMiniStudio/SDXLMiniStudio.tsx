@@ -17,12 +17,14 @@ class GenerateParameters {
   width: number;
   height: number;
   denoising_limit: number;
+  model: string;
 
   constructor(
-    prompt: string = '',
+    prompt: string = 'A cat with a red fedora holding a sign that says "Flux Studio"',
     guidance_scale: number = 8.0,
     num_inference_steps: number = 40,
     crops_coords_top_left: number[] = [0, 0],
+    model: string = 'sdxl',
     width: number = 1024,
     height: number = 1024,
     denoising_limit: number = 0.8
@@ -34,6 +36,7 @@ class GenerateParameters {
     this.width = width;
     this.height = height;
     this.denoising_limit = denoising_limit;
+    this.model = model;
   }
 }
 
@@ -59,16 +62,27 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
 
   const sizeOptions = [
     { value: 'standard', label: 'Standard, 1:1, 1024 x 1024' },
+    { value: 'small', label: 'Small, 1:1, 512 x 512' },
     { value: 'vertical', label: 'Vertical, 4:7, 768 x 1344' },
-    { value: 'portrait', label: 'Portrait, 9:9, 896 x 1152' },
+    { value: 'portrait', label: 'Portrait, 7:9, 896 x 1152' },
     { value: 'photo', label: 'Photo, 9:7, 1152 x 896' },
     { value: 'landscape', label: 'Landscape, 19:13, 1216 x 832' },
     { value: 'widescreen', label: 'Widescreen, 7:4, 1344 x 768' },
     { value: 'cinematic', label: 'Cinematic, 12:5, 1536 x 640' },
   ];
+
+  const modelOptions = [
+    { value: 'sdxl', label: 'SDXL' },
+    { value: 'flux', label: 'Flux' },
+  ];
+
   const [sizeOption, setSizeOption] = React.useState('standard');
   const handleSizeOptionChange = (_event: React.FormEvent<HTMLSelectElement>, value: string) => {
     switch (value) {
+      case 'small':
+        handleGenerateParametersChange(512, 'width');
+        handleGenerateParametersChange(512, 'height');
+        break;
       case 'standard':
         handleGenerateParametersChange(1024, 'width');
         handleGenerateParametersChange(1024, 'height');
@@ -107,6 +121,22 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
     handleGenerateParametersChange(value, 'guidance_scale');
   }
 
+  const [modelOption, setModelOption] = React.useState('sdxl');
+  const handleModelOptionChange = (_event: React.FormEvent<HTMLSelectElement>, value: string) => {
+    setModelOption(value);
+    handleGenerateParametersChange(value, 'model');
+    switch (value) {
+      case 'sdxl':
+        setNumInferenceSteps(40)
+        handleGenerateParametersChange(40, 'num_inference_steps');
+        break;
+      case 'flux':
+        setNumInferenceSteps(4)
+        handleGenerateParametersChange(4, 'num_inference_steps');
+        break;
+    }
+  }
+
   const [num_inference_steps, setNumInferenceSteps] = React.useState(40);
   const handleNumInferenceStepsChange = (_event: SliderOnChangeEvent, value: number) => {
     setNumInferenceSteps(value);
@@ -139,20 +169,27 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
       .post(`${config.backend_api_url}/generate`, generateParameters)
       .then((response) => {
         // Extract the job_id from the response.
-        const { job_id } = response.data;
+        const { job_id, model } = response.data;
         if (!job_id) {
           Emitter.emit('notification', {
             variant: 'warning',
             title: '',
             description: 'No job_id received from backend!',
           });
+          if (!model) {
+            Emitter.emit('notification', {
+              variant: 'warning',
+              title: '',
+              description: 'No model received from backend!',
+            });
+          }
           return;
         }
 
         // Create the WebSocket URL derived from backend API.
         const wsProtocol = config.backend_api_url.startsWith('https') ? 'wss' : 'ws';
         const backendHost = config.backend_api_url.replace(/^https?:\/\//, '');
-        const wsUrl = `${wsProtocol}://${backendHost}/generate/progress/${job_id}`;
+        const wsUrl = `${wsProtocol}://${backendHost}/generate/progress/${job_id}?model=${model}`;
 
         // Open a WebSocket connection.
         const ws = new WebSocket(wsUrl);
@@ -327,6 +364,46 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                     />
                   </FormGroup>
                   <FormGroup
+                    label="Model"
+                    fieldId="model"
+                    labelIcon={
+                      <Popover
+                        headerContent={
+                          <div>
+                            The model to use for image generation.
+                          </div>
+                        }
+                        bodyContent={
+                          <div>
+                            <p>SDXL or Flux </p>
+                            <p>Select one.</p>
+                          </div>
+                        }
+                      >
+                        <button
+                          type="button"
+                          aria-label="More info for name field"
+                          onClick={(e) => e.preventDefault()}
+                          aria-describedby="simple-form-name-03"
+                          className={styles.formGroupLabelHelp}
+                        >
+                          <HelpIcon />
+                        </button>
+                      </Popover>
+                    }>
+                    <FormSelect
+                      value={modelOption}
+                      id="model"
+                      name="model"
+                      aria-label="model"
+                      onChange={handleModelOptionChange}
+                    >
+                      {modelOptions.map((option, index) => (
+                        <FormSelectOption key={index} value={option.value} label={option.label} />
+                      ))}
+                    </FormSelect>
+                  </FormGroup>
+                  <FormGroup
                     label="Size"
                     fieldId="size"
                     labelIcon={
@@ -422,7 +499,10 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                               </ul>
                             </p>
                             <p>
-                              A minimum of <b>30 steps</b> is recommended for high-quality results.
+                              A minimum of <b>30 steps</b> is recommended for high-quality results for SDXL.
+                            </p>
+                            <p>
+                              For Flux, a minimum of <b>3 steps</b> is recommended for medium-quality results. <b>4 steps</b> is recommended for high-quality results.
                             </p>
                           </div>
                         }
@@ -444,7 +524,7 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                       onChange={handleNumInferenceStepsChange}
                       aria-labelledby="Number of Inference Steps"
                       hasTooltipOverThumb
-                      min={10}
+                      min={2}
                       max={100}
                       step={1}
                     />
