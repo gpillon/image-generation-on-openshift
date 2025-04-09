@@ -3,6 +3,7 @@ import io
 
 import torch
 from PIL import Image
+import numpy as np
 
 import taesd
 
@@ -37,30 +38,76 @@ def process_flux_latents(flux_pipeline, latents):
     Specialized for Flux models which may have different channel formats.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-    pipe = flux_pipeline.pipeline
+    
+    # Handle the case where flux_pipeline is the direct pipeline object or has a pipeline attribute
+    try:
+        pipe = flux_pipeline.pipeline
+    except (AttributeError, TypeError):
+        pipe = flux_pipeline  # Use flux_pipeline directly if it doesn't have .pipeline
     
     try:
         # Convert latents to images directly using the VAE decoder if possible
         with torch.no_grad():
-            # Ensure latents have expected shape for Flux (bsz, channel, height, width)
+            print(f"Flux latents shape: {latents.shape}, dtype: {latents.dtype}")
+            
+            # Handle different latent shapes
             if latents.dim() == 4:
-                # Standard processing
-                images = pipe.vae.decode(latents.to(device=device, dtype=torch.float16)).sample
-                images = (images / 2 + 0.5).clamp(0, 1)
-                images = images.cpu().permute(0, 2, 3, 1).numpy()
-                image = Image.fromarray((images[0] * 255).round().astype("uint8"))
+                # Standard 4D shape [batch, channel, height, width]
+                try:
+                    images = pipe.vae.decode(latents.to(device=device, dtype=torch.float16)).sample
+                    images = (images / 2 + 0.5).clamp(0, 1)
+                    images = images.cpu().permute(0, 2, 3, 1).numpy()
+                    image = Image.fromarray((images[0] * 255).round().astype("uint8"))
+                except Exception as e:
+                    print(f"Error decoding 4D latents: {e}")
+                    raise e
+                    
+            elif latents.dim() == 3:
+                # Handle 3D latents with shape [1, 1024, 64]
+                print(f"Processing 3D latents with shape {latents.shape}")
+                
+                # For 3D latents, we need a different approach
+                # Typically these are attention maps or internal representations
+                # Let's visualize them as a grayscale heatmap
+                
+                # Take the mean across the embedding dimension to get [1, 1024]
+                # Then reshape to a square image
+                heatmap = latents.mean(dim=2).detach().cpu().numpy()[0]  # Shape [1024]
+                
+                # Reshape to a square if possible, or use the closest square
+                size = int(heatmap.shape[0] ** 0.5)
+                if size * size == heatmap.shape[0]:
+                    # Perfect square
+                    heatmap_img = heatmap.reshape(size, size)
+                else:
+                    # Not a perfect square, pad to the next square
+                    next_square = (size + 1) ** 2
+                    padded = np.zeros(next_square)
+                    padded[:heatmap.shape[0]] = heatmap
+                    heatmap_img = padded.reshape(size + 1, size + 1)
+                
+                # Normalize to 0-1 range
+                heatmap_img = (heatmap_img - heatmap_img.min()) / (heatmap_img.max() - heatmap_img.min() + 1e-6)
+                
+                # Convert to PIL Image
+                heatmap_img = (heatmap_img * 255).astype(np.uint8)
+                image = Image.fromarray(heatmap_img).convert('RGB')
+                
+                # Resize to a reasonable size
+                image = image.resize((512, 512), Image.LANCZOS)
+                
+                # Add text overlay
+                from PIL import ImageDraw
+                draw = ImageDraw.Draw(image)
+                draw.text((10, 10), f"Progress: Latent shape {latents.shape}", fill=(255, 255, 255))
+                
             else:
-                # If channels don't match, try reshaping
-                # Assuming the latents come in with shape [1, 1, H, W] (single channel)
-                print(f"Flux latents shape: {latents.shape}, attempting to adapt")
-                # Repeat the channel to get 4 channels if needed
-                if latents.shape[1] == 1:
-                    latents = latents.repeat(1, 4, 1, 1)
-                    print(f"Reshaped to: {latents.shape}")
-                images = pipe.vae.decode(latents.to(device=device, dtype=torch.float16)).sample
-                images = (images / 2 + 0.5).clamp(0, 1)
-                images = images.cpu().permute(0, 2, 3, 1).numpy()
-                image = Image.fromarray((images[0] * 255).round().astype("uint8"))
+                print(f"Unexpected tensor dimension: {latents.dim()}")
+                placeholder = Image.new('RGB', (512, 512), color=(150, 150, 150))
+                from PIL import ImageDraw
+                draw = ImageDraw.Draw(placeholder)
+                draw.text((10, 10), f"Unknown shape: {latents.shape}", fill=(255, 255, 255))
+                image = placeholder
                 
             # Resize the image to half its size to save on bandwidth
             width, height = image.size
@@ -76,8 +123,15 @@ def process_flux_latents(flux_pipeline, latents):
             
     except Exception as e:
         print(f"Error processing Flux latents: {e}")
+        import traceback
+        traceback.print_exc()
+        
         # Fallback to a placeholder image if processing fails
         placeholder = Image.new('RGB', (256, 256), color='gray')
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(placeholder)
+        draw.text((20, 100), f"Error: {str(e)[:50]}...", fill=(255, 255, 255))
+        
         img_bytes = io.BytesIO()
         placeholder.save(img_bytes, format="PNG")
         img_bytes.seek(0)
