@@ -171,8 +171,8 @@ class FluxModelPipeline:
         # Extract common parameters from the request
         prompt = payload.prompt
         #negative_prompt = getattr(payload, 'negative_prompt', None)
-        height = getattr(payload, 'height', 1024)
-        width = getattr(payload, 'width', 1024)
+        height = getattr(payload, 'height', 512)  # Changed from 1024 to 512
+        width = getattr(payload, 'width', 512)    # Changed from 1024 to 512
         num_inference_steps = getattr(payload, 'num_inference_steps', 4)  # Flux works well with fewer steps
         guidance_scale = getattr(payload, 'guidance_scale', 3.5)
         
@@ -185,17 +185,29 @@ class FluxModelPipeline:
         # Log the parameters
         _log.info(f"Generating image with Flux: prompt='{prompt}', height={height}, width={width}, steps={num_inference_steps}")
         
-        # Create the image
-        result = self.pipeline(
-            prompt=prompt,
-            #negative_prompt=negative_prompt,
-            height=height,
-            width=width,
-            guidance_scale=guidance_scale,
-            # num_inference_steps=num_inference_steps,
-            num_inference_steps=4,
-            generator=generator,
-            callback_on_step_end=callback_func_base
-        )
+        # Create a custom callback to wrap the provided one and add debugging
+        def debug_callback_wrapper(_pipe, step, _timestep, callback_kwargs):
+            latents = callback_kwargs["latents"]
+            _log.info(f"Flux latents shape at step {step}: {latents.shape}, dtype: {latents.dtype}")
+            return callback_func_base(_pipe, step, _timestep, callback_kwargs)
         
-        return result.images[0] 
+        # Create the image
+        try:
+            _log.info("Starting Flux pipeline inference")
+            result = self.pipeline(
+                prompt=prompt,
+                #negative_prompt=negative_prompt,
+                height=height,
+                width=width,
+                guidance_scale=guidance_scale,
+                num_inference_steps=num_inference_steps,
+                generator=generator,
+                # callback_on_step_end=debug_callback_wrapper if callback_func_base else None
+            )
+            _log.info("Flux pipeline inference completed successfully")
+            return result.images[0]
+        except Exception as e:
+            _log.error(f"Error during Flux inference: {e}")
+            import traceback
+            _log.error(traceback.format_exc())
+            raise 
