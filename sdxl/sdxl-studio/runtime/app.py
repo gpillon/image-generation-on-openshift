@@ -17,7 +17,7 @@ from classes import GenerationRequest, GenerationResponse, HealthCheckResponse, 
 from diffusers_model import DiffusersPipeline
 from flux_model import FluxModelPipeline
 from helpers import logging_config, parse_args
-from latents_preview import process_latents
+from latents_preview import process_latents, process_flux_latents
 from watermark import add_watermark
 
 # Load local env vars if present
@@ -249,7 +249,11 @@ async def worker(worker_id, job_queue, pipeline_instance):
             # Define a callback function to send progress updates to the client.
             def callback_func_base(_pipe, step, _timestep, callback_kwargs):
                 latents = callback_kwargs["latents"]
-                base64_image = process_latents(pipeline_instance, latents)
+                # Use appropriate latent processing function based on pipeline type
+                if isinstance(pipeline_instance, FluxModelPipeline):
+                    base64_image = process_flux_latents(pipeline_instance, latents)
+                else:
+                    base64_image = process_latents(pipeline_instance, latents)
                 future = asyncio.run_coroutine_threadsafe(
                     job.notification_queue.put(
                         {
@@ -266,7 +270,11 @@ async def worker(worker_id, job_queue, pipeline_instance):
 
             def callback_func_refiner(_pipe, step, _timestep, callback_kwargs):
                 latents = callback_kwargs["latents"]
-                base64_image = process_latents(pipeline_instance, latents)
+                # Use appropriate latent processing function based on pipeline type
+                if isinstance(pipeline_instance, FluxModelPipeline):
+                    base64_image = process_flux_latents(pipeline_instance, latents)
+                else:
+                    base64_image = process_latents(pipeline_instance, latents)
                 future = asyncio.run_coroutine_threadsafe(
                     job.notification_queue.put(
                         {

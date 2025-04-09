@@ -201,8 +201,9 @@ class FluxModelPipeline:
                 width=width,
                 guidance_scale=guidance_scale,
                 num_inference_steps=num_inference_steps,
+                # num_inference_steps=4,
                 generator=generator,
-                # callback_on_step_end=debug_callback_wrapper if callback_func_base else None
+                callback_on_step_end=debug_callback_wrapper if callback_func_base else None
             )
             _log.info("Flux pipeline inference completed successfully")
             return result.images[0]
