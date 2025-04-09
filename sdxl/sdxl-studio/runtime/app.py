@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from classes import GenerationRequest, GenerationResponse, HealthCheckResponse, Job
 from diffusers_model import DiffusersPipeline
+from flux_model import FluxModelPipeline
 from helpers import logging_config, parse_args
 from latents_preview import process_latents
 from watermark import add_watermark
@@ -300,7 +301,7 @@ async def worker(worker_id, job_queue, pipeline_instance):
             
             enable_watermark = os.getenv("ENABLE_WATERMARK", "true")
             if enable_watermark == "true":
-                watermark_text = os.getenv("WATERMARK_TEXT", "AI-generated Image. Demo purposes only. More info at red.ht/maas")
+                watermark_text = os.getenv("WATERMARK_TEXT", "Locally Geneated, Finally!!! :)")
                 watermarked_image = add_watermark(encoded_image, watermark_text)
                 job.result = watermarked_image
             else:
@@ -334,18 +335,38 @@ async def process_queue():
     """
     global job_queue, args
 
-    _log.info("Device: " + args.device)
+    _log.info(f"Device: {args.device}")
+    _log.info(f"Model Type: {args.model_type}")
+    _log.info(f"Creating {generation_workers} worker(s)...")
+    _log.info(f"Model path: {args.model_id}, Single file model: {args.single_file_model}")
 
     # Create a pool of workers
     workers = []
     for i in range(generation_workers):
-        pipeline_instance = DiffusersPipeline(
-            args
-        )  # Create a new instance of diffusers_pipeline
-        pipeline_instance.load()
-        worker_task = asyncio.create_task(worker(i, job_queue, pipeline_instance))
-        workers.append(worker_task)
+        _log.info(f"Initializing worker {i}...")
+        try:
+            # Select the appropriate pipeline based on model_type
+            if args.model_type == "flux":
+                _log.info(f"Worker {i}: Creating Flux pipeline...")
+                pipeline_instance = FluxModelPipeline(args)
+            else:
+                _log.info(f"Worker {i}: Creating SDXL pipeline...")
+                pipeline_instance = DiffusersPipeline(args)
+                
+            _log.info(f"Worker {i}: Loading model...")
+            pipeline_instance.load()
+            _log.info(f"Worker {i}: Model loaded successfully!")
+            worker_task = asyncio.create_task(worker(i, job_queue, pipeline_instance))
+            workers.append(worker_task)
+            _log.info(f"Worker {i} initialized and started")
+        except Exception as e:
+            _log.error(f"Error initializing worker {i}: {str(e)}")
+            import traceback
+            _log.error(traceback.format_exc())
 
+    if not workers:
+        _log.error("No workers were initialized successfully! Jobs will remain queued.")
+    
     # Wait for all workers to complete (they won't, as they run indefinitely)
     await asyncio.gather(*workers)
 

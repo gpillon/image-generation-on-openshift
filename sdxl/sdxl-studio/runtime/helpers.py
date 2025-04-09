@@ -24,6 +24,13 @@ def parse_args():
         help="Enable auto-reload",
     )
     parser.add_argument(
+        "--model-type",
+        type=str,
+        default=os.getenv("MODEL_TYPE", "sdxl"),
+        choices=["sdxl", "flux"],
+        help="Model type to use (sdxl or flux)",
+    )
+    parser.add_argument(
         "--model-id",
         type=str,
         default=os.getenv("MODEL_ID", "/mnt/models"),
