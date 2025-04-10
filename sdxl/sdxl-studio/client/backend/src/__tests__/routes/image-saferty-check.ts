@@ -1,5 +1,5 @@
 import axios from 'axios';
-import imageSafetyCheck from '../../services/image-safety-check'// Update with the correct path
+import imageSafetyCheck from '../../services/image-safety-check'; // Update with the correct path
 import { getSafetyCheckConfig } from '../../utils/config';
 
 jest.mock('axios');
@@ -11,11 +11,10 @@ const mockedAxios = axios as jest.Mocked<typeof axios>;
 describe('imageSafetyCheck', () => {
   it('should return the safety check response when successful', async () => {
     (getSafetyCheckConfig as jest.Mock).mockReturnValue({
-        safetyCheckEndpointURL: 'https://mockapi.com',
-        safetyCheckModel: 'mockModel',
-        safetyCheckEndpointToken: 'mockToken',
-      });
-
+      safetyCheckEndpointURL: 'https://mockapi.com',
+      safetyCheckModel: 'mockModel',
+      safetyCheckEndpointToken: 'mockToken',
+    });
 
     const mockResponse = {
       data: {
@@ -43,12 +42,12 @@ describe('imageSafetyCheck', () => {
           Authorization: 'Bearer mockToken',
           'Content-Type': 'application/json',
         },
-      }
+      },
     );
   });
 
   it('should return true when response is missing expected data', async () => {
-      (getSafetyCheckConfig as jest.Mock).mockReturnValue({
+    (getSafetyCheckConfig as jest.Mock).mockReturnValue({
       safetyCheckEndpointURL: 'https://mockapi.com',
       safetyCheckModel: 'mockModel',
       safetyCheckEndpointToken: 'mockToken',

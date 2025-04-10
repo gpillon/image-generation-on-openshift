@@ -13,6 +13,14 @@ module.exports = merge(common('development'), {
   devServer: {
     host: HOST,
     port: PORT,
+    proxy: [
+      {
+        context: ['/api'],
+        target: 'http://localhost:8888',
+        ws: true,
+        
+      },
+    ],
     historyApiFallback: true,
     open: true,
     static: {

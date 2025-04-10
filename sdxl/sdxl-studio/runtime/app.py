@@ -229,22 +229,20 @@ async def worker(worker_id, job_queue, pipeline_instance):
     Worker function that processes jobs from the queue.
     Callback functions are used by predict to notify the client of progress.
     """
+    _log.info(f"Worker {worker_id} started and waiting for jobs")
     while True:
-        job = await job_queue.get()
-        queue_list.remove(job.id)
-
         try:
-            job.state = "processing"
-            _log.info(f"Worker {worker_id} processing job {job.id}")
+            _log.info(f"Worker {worker_id} waiting for next job from queue")
+            job = await job_queue.get()
+            _log.info(f"Worker {worker_id} got job {job.id} from queue")
+            queue_list.remove(job.id)
 
-            # Notify clients about queue updates
-            await notify_all_queue_positions()
+            try:
+                job.state = "processing"
+                _log.info(f"Worker {worker_id} processing job {job.id}")
 
-            await job.notification_queue.put(
-                {"status": "processing", "message": "Job is processing."}
-            )
-            # Get the current event loop
-            loop = asyncio.get_event_loop()
+                # Notify clients about queue updates
+                await notify_all_queue_positions()
 
             # Define a callback function to send progress updates to the client.
             def callback_func_base(_pipe, step, _timestep, callback_kwargs):
@@ -265,8 +263,8 @@ async def worker(worker_id, job_queue, pipeline_instance):
                     ),
                     loop,
                 )
-                future.result()  # Wait for the coroutine to finish
-                return {}
+                # Get the current event loop
+                loop = asyncio.get_event_loop()
 
             def callback_func_refiner(_pipe, step, _timestep, callback_kwargs):
                 latents = callback_kwargs["latents"]
@@ -286,24 +284,23 @@ async def worker(worker_id, job_queue, pipeline_instance):
                     ),
                     loop,
                 )
-                future.result()  # Wait for the coroutine to finish
-                return {}
+                processing_time = time.time() - start_time
 
-            # Run the prediction in a thread to avoid blocking the event loop.
-            start_time = time.time()
-            image = await asyncio.to_thread(
-                pipeline_instance.predict,
-                job.request,
-                callback_func_base,
-                callback_func_refiner,
-            )
-            processing_time = time.time() - start_time
+                # Prepare image bytes
+                img_bytes = io.BytesIO()
+                image.save(img_bytes, format="PNG")
+                img_bytes.seek(0)
+                encoded_image = base64.b64encode(img_bytes.read()).decode("utf-8")
 
-            # Prepare image bytes
-            img_bytes = io.BytesIO()
-            image.save(img_bytes, format="PNG")
-            img_bytes.seek(0)
-            encoded_image = base64.b64encode(img_bytes.read()).decode("utf-8")
+                # Add watermark to the base64 encoded image if it's enabled 
+                
+                enable_watermark = os.getenv("ENABLE_WATERMARK", "true")
+                if enable_watermark == "true":
+                    watermark_text = os.getenv("WATERMARK_TEXT", "AI-generated Image. Demo purposes only. More info at red.ht/maas")
+                    watermarked_image = add_watermark(encoded_image, watermark_text)
+                    job.result = watermarked_image
+                else:
+                    job.result = encoded_image
 
             # Add watermark to the base64 encoded image if it's enabled 
             
@@ -315,26 +312,16 @@ async def worker(worker_id, job_queue, pipeline_instance):
             else:
                 job.result = encoded_image
 
-            # Handle the result and notify the client
-            await job.notification_queue.put(
-                {
-                    "status": "completed",
-                    "image": job.result,
-                    "processing_time": processing_time,
-                }
-            )
-            job.state = "completed"
-            _log.info(
-                f"Worker {worker_id} completed job {job.id} in {processing_time:.2f} seconds"
-            )
+            except Exception as e:
+                _log.error(f"Worker {worker_id} failed to process job {job.id}: {e}")
+                job.state = "failed"
+                await job.notification_queue.put({"status": "failed", "message": str(e)})
+
+            finally:
+                job_queue.task_done()
 
         except Exception as e:
-            _log.error(f"Worker {worker_id} failed to process job {job.id}: {e}")
-            job.state = "failed"
-            await job.notification_queue.put({"status": "failed", "message": str(e)})
-
-        finally:
-            job_queue.task_done()
+            _log.error(f"Worker {worker_id} failed to get job: {e}")
 
 
 async def process_queue():

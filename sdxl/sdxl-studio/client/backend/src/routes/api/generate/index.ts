@@ -8,6 +8,7 @@ import {
   getGuardConfig,
   getSafetyCheckConfig,
   updateLastActivity,
+  getFluxEndpoint,
 } from '../../../utils/config'; // Adjust the import path as needed
 import guard from '../../../services/guard';
 import safetyChecker from '../../../services/image-safety-check';
@@ -29,6 +30,7 @@ export default async (fastify: FastifyInstance): Promise<void> => {
       crops_coords_top_left,
       width,
       height,
+      model,
       denoising_limit,
     } = req.body as any;
 
@@ -45,6 +47,19 @@ export default async (fastify: FastifyInstance): Promise<void> => {
     };
 
     updateLastActivity();
+
+    let modelEndpoint;
+    switch (model) {
+      case 'sdxl':
+        modelEndpoint = getSDXLEndpoint();
+        break;
+      case 'flux':
+        modelEndpoint = getFluxEndpoint();
+        break;
+      default:
+        reply.code(400).send({ message: 'Invalid model' });
+        return;
+    }
 
     const guardConfig = getGuardConfig();
     const safetyCheckConfig = getSafetyCheckConfig();
@@ -82,14 +97,10 @@ export default async (fastify: FastifyInstance): Promise<void> => {
       }
     }
 
-    console.log(
-      'Sending request to SDXL endpoint:',
-      getSDXLEndpoint().sdxlEndpointURL + '/generate',
-    );
+    console.log(`Sending request to ${model} endpoint:`, modelEndpoint.endpointURL + '/generate');
 
     const response = await axios.post(
-      getSDXLEndpoint().sdxlEndpointURL +
-        `/generate?user_key=${getSDXLEndpoint().sdxlEndpointToken}`,
+      modelEndpoint.endpointURL + `/generate?user_key=${modelEndpoint.endpointToken}`,
       data,
     );
 
@@ -99,7 +110,7 @@ export default async (fastify: FastifyInstance): Promise<void> => {
       return;
     }
     jobTracker[parseInt(job_id)] = data;
-    reply.send({ job_id });
+    reply.send({ job_id, model });
   });
 
   // =======================================================
@@ -109,13 +120,26 @@ export default async (fastify: FastifyInstance): Promise<void> => {
     const { job_id } = req.params as { job_id: string };
     console.log(`Client connected for job_id: ${job_id}`);
 
-    // Connect to the external API WebSocket
-    const wsProtocol = getSDXLEndpoint().sdxlEndpointURL.startsWith('https') ? 'wss' : 'ws';
-    const backendHost = getSDXLEndpoint().sdxlEndpointURL.replace(/^https?:\/\//, '');
+    const { model } = req.query as { model: string };
 
-    const apiWsUrl = `${wsProtocol}://${backendHost}/progress/${job_id}?user_key=${
-      getSDXLEndpoint().sdxlEndpointToken
-    }`;
+    let modelEndpoint;
+    switch (model) {
+      case 'sdxl':
+        modelEndpoint = getSDXLEndpoint();
+        break;
+      case 'flux':
+        modelEndpoint = getFluxEndpoint();
+        break;
+      default:
+        connection.socket.send(JSON.stringify({ error: 'Invalid model' }));
+        connection.socket.close();
+        return;
+    }
+    // Connect to the external API WebSocket
+    const wsProtocol = modelEndpoint.endpointURL.startsWith('https') ? 'wss' : 'ws';
+    const backendHost = modelEndpoint.endpointURL.replace(/^https?:\/\//, '');
+
+    const apiWsUrl = `${wsProtocol}://${backendHost}/progress/${job_id}?user_key=${modelEndpoint.endpointToken}`;
     console.log(`Connecting to API WebSocket: ${apiWsUrl}`);
     const apiWs = new WebSocket(apiWsUrl);
 

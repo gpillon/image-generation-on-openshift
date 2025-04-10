@@ -16,6 +16,7 @@ The parameters you can pass as arguments to the script (or container image) are:
 - `--model_type`: Model type to use. Options are `sdxl` (default) or `flux`.
 - `--model_id`: Model ID to load. Defaults to `/mnt/models`. You must adapt this if you use the refiner model and need to point to a specific directory in your models folder.
 - `--single_file_model`: Full name/location of your model if saved as a single file.
+- `--model-type`: sdxl/flux (Default: sdxl) Model Pipeline
 - `--use_refiner`: True/False (default False) indicates if the refiner must be used.
 - `--refiner_id`: Refiner model ID to load. You must adapt this to point to a specific directory in your models folder.
 - `--refiner_single_file_model`: Full name/location of your refiner model if saved as a single file.

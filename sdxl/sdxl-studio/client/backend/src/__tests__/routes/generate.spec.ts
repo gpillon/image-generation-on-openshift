@@ -1,8 +1,10 @@
 import Fastify from 'fastify';
 import axios from 'axios';
 import guard from '../../services/guard';
-import jobRoutes from '../../routes/api/generate/index'
-import {setSDXLEndpoint, setGuardEndpoint, setGuardEnabled, getGuardEnabled} from '../../utils/config';
+import jobRoutes from '../../routes/api/generate/index';
+import {
+  setGuardEnabled,
+} from '../../utils/config';
 
 jest.mock('axios');
 jest.mock('ws');
@@ -22,8 +24,6 @@ afterAll(async () => {
 
 describe('POST /', () => {
   it('should return job_id when generation request is successful with guardian disabled', async () => {
-    setGuardEnabled('false');
-    setSDXLEndpoint('http://sdxl-endpoint', 'sdxl-token');
     mockedAxios.post.mockImplementation((url, data) => {
       if (url === 'http://sdxl-endpoint/generate?user_key=sdxl-token') {
         return Promise.resolve({ data: { job_id: '12345' } });
@@ -31,7 +31,7 @@ describe('POST /', () => {
         return Promise.reject(new Error('Invalid request'));
       }
     });
-    
+
     const response = await fastify.inject({
       method: 'POST',
       url: '/',
@@ -62,9 +62,9 @@ describe('POST /', () => {
       },
     });
 
-
-    expect(response.body).toEqual("{\"message\":\"Your query appears to contain inappropriate content. Please rephrase and try again\"}");
-
+    expect(response.body).toEqual(
+      '{"message":"Your query appears to contain inappropriate content. Please rephrase and try again"}',
+    );
   });
 
   it('should return error code 200 when guardian is enabled and prompt request is for safe content', async () => {
@@ -87,6 +87,4 @@ describe('POST /', () => {
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({ job_id: '98765' });
   });
-
-
 });
