@@ -93,8 +93,8 @@ class FluxModelPipeline:
 
                 # checkpoint = load_file(model_path)
 
-                # # Optionally, if the checkpoint combines multiple component weights,
-                # # split the weights by module name. Adjust the key names as necessary.
+                # Optionally, if the checkpoint combines multiple component weights,
+                # split the weights by module name. Adjust the key names as necessary.
                 # unet_state_dict = {
                 #     key[len("unet."):]: value
                 #     for key, value in checkpoint.items() if key.startswith("unet.")

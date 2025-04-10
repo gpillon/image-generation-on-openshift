@@ -58,7 +58,7 @@ class WanModelPipeline:
             else:
                 _log.info("Moving model to CUDA")
                 pipeline = pipeline.to("cuda")
-            
+            pipeline.enable_model_cpu_offload()
             self.pipeline = pipeline
             self.ready = True
             _log.info("WAN model loaded successfully")
