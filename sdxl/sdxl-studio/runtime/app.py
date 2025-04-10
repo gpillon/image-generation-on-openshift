@@ -352,7 +352,7 @@ async def worker(worker_id, job_queue, pipeline_instance):
             # For WAN models, send additional video info
             if isinstance(pipeline_instance, WanModelPipeline):
                 # Get the video path
-                video_path = os.path.abspath("temp_output.mp4")
+                video_path = os.path.abspath("/tmp/temp_output.mp4")
                 if os.path.exists(video_path):
                     video_info = {
                         "status": "video_ready",
@@ -387,7 +387,7 @@ async def worker(worker_id, job_queue, pipeline_instance):
             # despite the error (which might be just in preview image creation)
             try:
                 if isinstance(pipeline_instance, WanModelPipeline):
-                    video_path = os.path.abspath("temp_output.mp4")
+                    video_path = os.path.abspath("/tmp/temp_output.mp4")
                     if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
                         video_info = {
                             "status": "video_ready",
