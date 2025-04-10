@@ -309,7 +309,7 @@ async def worker(worker_id, job_queue, pipeline_instance):
             
             enable_watermark = os.getenv("ENABLE_WATERMARK", "true")
             if enable_watermark == "true":
-                watermark_text = os.getenv("WATERMARK_TEXT", "Locally Geneated, Finally!!! :)")
+                watermark_text = os.getenv("WATERMARK_TEXT", "AI-generated Image. Demo purposes only. More info at red.ht/maas")
                 watermarked_image = add_watermark(encoded_image, watermark_text)
                 job.result = watermarked_image
             else:
