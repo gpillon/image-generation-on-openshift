@@ -1,10 +1,10 @@
 import gc
 import logging
-import os
 from typing import Dict
 
 import torch
 from diffusers import FluxPipeline, FluxTransformer2DModel
+from transformers import T5EncoderModel, CLIPTextModel
 from huggingface_hub import hf_hub_download, login
 from safetensors.torch import load_file
 
@@ -12,12 +12,10 @@ from classes import GenerationRequest
 
 _log = logging.getLogger(__name__)
 
-#TODO: fix local import file path or remote imports
-#TODO: MUST remove the hardcoding of the repo....
-
 class FluxModelPipeline:
     def __init__(self, args):
-        self.repo_id: str = args.repo_id or "black-forest-labs/FLUX.1-dev"
+        #self.repo_id: str = args.repo_id or "black-forest-labs/FLUX.1-schnell"
+        self.repo_id: str = "black-forest-labs/FLUX.1-schnell" #TODO: this is so bad... :( need to solve this...
         self.model_id: str = args.model_id or "/mnt/models"
         self.device = args.device or "cuda"
         # self.hf_token = os.getenv("HUGGINGFACE_TOKEN")
@@ -39,18 +37,32 @@ class FluxModelPipeline:
 
             if self.single_file_model and self.single_file_model != "":
 
-                print ("Single file model not yet supported for Flux")
-                exit(1)
+                print ("WARNING: Single file model not yet supported & optimized for Flux, SHOULD NOT BE USED!")
 
-                # _log.info(f"Loading from single file: {self.single_file_model}")
-                # model_path = self.model_id
-                # if self.single_file_model.startswith("/"):
-                #     model_path = self.single_file_model
-                # else:
-                #     model_path = f"{self.model_id}/{self.single_file_model}"
-                # _log.info(f"Full model path: {model_path}")
+                _log.info(f"Loading from single file: {self.single_file_model}")
+                model_path = self.model_id
+                if self.single_file_model.startswith("/"):
+                    model_path = self.single_file_model
+                else:
+                    model_path = f"{self.model_id}/{self.single_file_model}"
+                _log.info(f"Full model path: {model_path}")
 
-                # transformer = FluxTransformer2DModel.from_single_file(model_path)
+                # pipeline = FluxPipeline.from_single_file NOT SUPPORTED! 
+                # https://github.com/huggingface/diffusers/issues/9053
+
+                pipeline = FluxPipeline.from_pretrained(
+                    self.repo_id,
+                    transformer=None,
+                    #text_encoder_2=None,
+                    torch_dtype=torch.float16,
+                    device_map="balanced"  # Only valid option for Flux in diffusers
+                )
+
+                transformer = FluxTransformer2DModel.from_single_file(model_path)
+                #text_encoder_2 = T5EncoderModel.from_pretrained(self.repo_id, subfolder="text_encoder_2", torch_dtype=torch.float16)
+
+                pipeline.transformer = transformer
+                #pipeline.text_encoder_2 = text_encoder_2
 
                 # pipeline = FluxPipeline.from_pretrained(
                 #     self.repo_id,
