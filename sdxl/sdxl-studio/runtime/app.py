@@ -6,6 +6,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 import os
+from PIL import Image
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -279,12 +280,18 @@ async def worker(worker_id, job_queue, pipeline_instance):
                     base64_image = process_wan_latents(pipeline_instance, latents)
                 else:
                     base64_image = process_latents(pipeline_instance, latents)
+                
+                # Calculate progress percentage for more accurate reporting
+                total_steps = job.request.num_inference_steps
+                progress_pct = int((step + 1) / total_steps * 100)
+                
                 future = asyncio.run_coroutine_threadsafe(
                     job.notification_queue.put(
                         {
                             "pipeline": "base",
                             "status": "progress",
                             "step": step,
+                            "progress": progress_pct,
                             "image": base64_image,
                         }
                     ),
@@ -347,14 +354,17 @@ async def worker(worker_id, job_queue, pipeline_instance):
                 # Get the video path
                 video_path = os.path.abspath("temp_output.mp4")
                 if os.path.exists(video_path):
-                    await job.notification_queue.put(
-                        {
-                            "status": "video_ready",
-                            "video_path": video_path,
-                            "fps": getattr(job.request, 'fps', 15),
-                            "num_frames": getattr(job.request, 'num_frames', 81),
-                        }
-                    )
+                    video_info = {
+                        "status": "video_ready",
+                        "video_path": video_path,
+                        "fps": getattr(job.request, 'fps', 15),
+                        "num_frames": getattr(job.request, 'num_frames', 81),
+                        "duration": getattr(job.request, 'num_frames', 81) / getattr(job.request, 'fps', 15),
+                    }
+                    await job.notification_queue.put(video_info)
+                    _log.info(f"Video ready: {video_path}, duration: {video_info['duration']:.2f}s")
+                else:
+                    _log.warning(f"Video file not found at {video_path}")
 
             # Handle the result and notify the client
             await job.notification_queue.put(
@@ -372,6 +382,53 @@ async def worker(worker_id, job_queue, pipeline_instance):
         except Exception as e:
             _log.error(f"Worker {worker_id} failed to process job {job.id}: {e}")
             job.state = "failed"
+            
+            # Check if this was a video generation job and if the video file exists
+            # despite the error (which might be just in preview image creation)
+            try:
+                if isinstance(pipeline_instance, WanModelPipeline):
+                    video_path = os.path.abspath("temp_output.mp4")
+                    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+                        video_info = {
+                            "status": "video_ready",
+                            "video_path": video_path,
+                            "fps": getattr(job.request, 'fps', 15),
+                            "num_frames": getattr(job.request, 'num_frames', 81),
+                            "error": "Preview failed but video was generated",
+                        }
+                        await job.notification_queue.put(video_info)
+                        _log.info(f"Video ready despite error: {video_path}")
+                        
+                        # Create a placeholder image for preview
+                        placeholder = Image.new('RGB', (480, 480), color=(100, 150, 200))
+                        from PIL import ImageDraw
+                        draw = ImageDraw.Draw(placeholder)
+                        draw.text((20, 20), "Video generation completed", fill=(255, 255, 255))
+                        draw.text((20, 50), "But preview creation failed", fill=(255, 255, 255))
+                        draw.text((20, 80), f"Error: {str(e)[:50]}", fill=(255, 255, 255))
+                        
+                        # Save placeholder as image preview
+                        img_bytes = io.BytesIO()
+                        placeholder.save(img_bytes, format="PNG")
+                        img_bytes.seek(0)
+                        encoded_image = base64.b64encode(img_bytes.read()).decode("utf-8")
+                        
+                        # Set as result and mark job as completed with warning
+                        job.result = encoded_image
+                        job.state = "completed"
+                        await job.notification_queue.put({
+                            "status": "completed",
+                            "image": job.result,
+                            "processing_time": time.time() - start_time,
+                            "warning": f"Preview failed but video was generated: {str(e)}"
+                        })
+                        _log.info(f"Worker {worker_id} completed job {job.id} with preview error")
+                        job_queue.task_done()
+                        continue
+            except Exception as inner_e:
+                _log.error(f"Error handling video fallback: {inner_e}")
+            
+            # If we got here, send the error message
             await job.notification_queue.put({"status": "failed", "message": str(e)})
 
         finally:

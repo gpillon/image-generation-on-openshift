@@ -36,20 +36,24 @@ class WanModelPipeline:
                 _log.warning("Single file model not yet supported for WAN, using pretrained model instead")
                 # Fall back to pretrained model
                 
-            # Load the VAE and pipeline
+            # Load the pipeline first (without specifying VAE)
+            _log.info(f"Loading WAN pipeline from: {self.model_id}")
+            pipeline = WanPipeline.from_pretrained(
+                self.model_id,
+                torch_dtype=torch.float16  # Use float16 instead of bfloat16 for better compatibility
+            )
+            
+            # Now load VAE with matching dtype
             _log.info(f"Loading VAE from: {self.model_id}")
             vae = AutoencoderKLWan.from_pretrained(
                 self.model_id, 
                 subfolder="vae", 
-                torch_dtype=torch.float32
+                torch_dtype=torch.float16  # Match the model's dtype
             )
             
-            _log.info(f"Loading WAN pipeline from: {self.model_id}")
-            pipeline = WanPipeline.from_pretrained(
-                self.model_id,
-                vae=vae,
-                torch_dtype=torch.bfloat16
-            )
+            # Assign the VAE to the pipeline
+            pipeline.vae = vae
+            
             
             # Move to the appropriate device
             if self.device == "cpu":
@@ -58,6 +62,7 @@ class WanModelPipeline:
             else:
                 _log.info("Moving model to CUDA")
                 pipeline = pipeline.to("cuda")
+
             pipeline.enable_model_cpu_offload()
             self.pipeline = pipeline
             self.ready = True
@@ -77,7 +82,8 @@ class WanModelPipeline:
         width = getattr(payload, 'width', 832)    # Default width for video
         num_frames = getattr(payload, 'num_frames', 81)  # Default number of frames
         guidance_scale = getattr(payload, 'guidance_scale', 5.0)
-        
+        self.fps = getattr(payload, 'fps', 15)  # Get fps from payload
+        num_inference_steps = getattr(payload, 'num_inference_steps', 50)
         # Set up a fixed seed if requested
         seed = getattr(payload, 'seed', None)
         generator = torch.Generator("cpu")
@@ -85,12 +91,11 @@ class WanModelPipeline:
             generator = generator.manual_seed(seed)
         
         # Log the parameters
-        _log.info(f"Generating video with WAN: prompt='{prompt}', height={height}, width={width}, frames={num_frames}")
+        _log.info(f"Generating video with WAN: prompt='{prompt}', height={height}, width={width}, frames={num_frames}, fps={self.fps}")
         
         # Create a custom callback to wrap the provided one
         def video_callback_wrapper(_pipe, step, _timestep, callback_kwargs):
             # Extract latents or intermediate results if available
-            # Note: This may need adjustment based on WanPipeline's callback structure
             if "latents" in callback_kwargs:
                 latents = callback_kwargs["latents"]
                 _log.info(f"WAN latents shape at step {step}: {latents.shape}, dtype: {latents.dtype}")
@@ -108,24 +113,68 @@ class WanModelPipeline:
                 width=width,
                 num_frames=num_frames,
                 guidance_scale=guidance_scale,
+                num_inference_steps=num_inference_steps,
                 generator=generator,
                 callback_on_step_end=video_callback_wrapper if callback_func_base else None
             )
             
             _log.info("WAN pipeline inference completed successfully")
             
-            # Export video to bytes for preview
+            # Export video to bytes for preview - do this in a separate try block
+            # to ensure video is saved even if frame processing fails
             video_frames = result.frames[0]
             
-            # Save video to a temporary file
-            temp_video_path = "temp_output.mp4"
-            export_to_video(video_frames, temp_video_path, fps=self.fps)
+            # Save video to a temporary file immediately
+            temp_video_path = "/tmp/temp_output.mp4"
+            try:
+                export_to_video(video_frames, temp_video_path, fps=self.fps)
+                _log.info(f"Video saved to {temp_video_path} with {len(video_frames)} frames at {self.fps} fps")
+            except Exception as video_save_error:
+                _log.error(f"Error saving video: {video_save_error}")
+                raise video_save_error
             
-            # For the preview, use the first frame as an image
-            first_frame = Image.fromarray(video_frames[0])
-            
-            # Return the first frame for preview
-            return first_frame
+            # Now try to create a preview image from the first frame
+            try:
+                import numpy as np
+                
+                # Get the first frame
+                first_frame = video_frames[0]
+                
+                # Check and fix the shape if needed
+                if first_frame.shape[0] == 1 and first_frame.shape[1] == 1:
+                    # Create a placeholder image since the frame is too small
+                    placeholder = np.zeros((480, 480, 3), dtype=np.uint8)
+                    placeholder[:,:] = (100, 150, 200)  # Blue-ish background
+                    # Add text with PIL
+                    preview_img = Image.fromarray(placeholder)
+                    from PIL import ImageDraw, ImageFont
+                    draw = ImageDraw.Draw(preview_img)
+                    draw.text((20, 20), "Video generation complete!", (255, 255, 255))
+                    draw.text((20, 50), f"Video saved to: {temp_video_path}", (255, 255, 255))
+                    draw.text((20, 80), f"Frames: {len(video_frames)}, FPS: {self.fps}", (255, 255, 255))
+                else:
+                    # Make sure the frame is in the right format (0-255 uint8)
+                    if first_frame.dtype == np.float32 or first_frame.dtype == np.float64:
+                        # Convert float (0-1) to uint8 (0-255)
+                        if first_frame.max() <= 1.0:
+                            first_frame = (first_frame * 255).astype(np.uint8)
+                        else:
+                            first_frame = first_frame.astype(np.uint8)
+                    
+                    preview_img = Image.fromarray(first_frame)
+                
+                return preview_img
+                
+            except Exception as e:
+                _log.error(f"Error creating preview image: {e}")
+                # Create a fallback preview image
+                placeholder = Image.new('RGB', (480, 480), color=(100, 150, 200))
+                from PIL import ImageDraw
+                draw = ImageDraw.Draw(placeholder)
+                draw.text((20, 20), "Video generation complete!", fill=(255, 255, 255))
+                draw.text((20, 50), f"Video saved, but preview failed: {str(e)[:50]}", fill=(255, 255, 255))
+                
+                return placeholder
             
         except Exception as e:
             _log.error(f"Error during WAN inference: {e}")

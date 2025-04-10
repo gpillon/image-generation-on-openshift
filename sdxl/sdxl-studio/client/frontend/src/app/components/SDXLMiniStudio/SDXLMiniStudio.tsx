@@ -155,7 +155,9 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
         setNumInferenceSteps(30)
         handleGenerateParametersChange(30, 'num_inference_steps');
         // Set default video params
-        handleGenerateParametersChange(81, 'num_frames');
+        setNumFrames(40);
+        handleGenerateParametersChange(40, 'num_frames');
+        setFps(16);
         handleGenerateParametersChange(16, 'fps');
         // For videos, use landscape format
         setSizeOption('standard');
@@ -195,6 +197,9 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
     setFps(value);
     handleGenerateParametersChange(value, 'fps');
   }
+
+  // Add a new state variable for progress percentage
+  const [progressPct, setProgressPct] = React.useState(0);
 
   const handleGenerateImage = (event) => {
     event.preventDefault();
@@ -267,11 +272,13 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
             // If this is a progress update, update UI elements.
             if (msg.status && msg.status === 'progress') {
               if (model === 'wan') {
-                setImagePanelTitle('The video is being generated...');
+                setImagePanelTitle(`Video generation in progress: ${msg.progress || 0}%`);
               } else {
-                setImagePanelTitle('The image is being generated...');
+                setImagePanelTitle(`Image generation in progress: ${msg.progress || 0}%`);
               }
               setProgressVisible(true);
+              setProgressPct(msg.progress || 0);
+
               if (msg.pipeline && msg.pipeline === 'base') {
                 setPhase('Base');
                 setBaseStep(msg.step + 1);
@@ -287,7 +294,7 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
 
             // If the job is complete, update the image data and close the WebSocket.
             if (msg.status && msg.status === 'completed') {
-              if (msg.image_failed_check === true ) {
+              if (msg.image_failed_check === true) {
                 setProgressVisible(false);
                 setBaseStep(0);
                 setRefinerStep(0);
@@ -303,14 +310,27 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                 setRefinerStep(0);
                 setFileName('new_image.png');
                 setFileData(msg.image);
-                setImagePanelTitle('Image generated in ' + msg.processing_time.toFixed(1) + ' seconds');
-                Emitter.emit('notification', {
-                  variant: 'success',
-                  title: '',
-                  description: model === 'wan'
-                    ? 'Video generated! Check the Video Output panel.'
-                    : (msg.description || 'Image generated!'),
-                });
+
+                // Handle warnings if present
+                if (msg.warning) {
+                  setImagePanelTitle(model === 'wan' ? 'Video generated with warnings' : 'Image generated with warnings');
+                  Emitter.emit('notification', {
+                    variant: 'warning',
+                    title: '',
+                    description: model === 'wan'
+                      ? 'Video generated but with warnings. You can still download the video.'
+                      : (msg.warning || 'Generation completed with warnings'),
+                  });
+                } else {
+                  setImagePanelTitle((model === 'wan' ? 'Video' : 'Image') + ' generated in ' + msg.processing_time.toFixed(1) + ' seconds');
+                  Emitter.emit('notification', {
+                    variant: 'success',
+                    title: '',
+                    description: model === 'wan'
+                      ? 'Video generated! Check the Video Output panel.'
+                      : (msg.description || 'Image generated!'),
+                  });
+                }
               }
 
               ws.close();
@@ -659,12 +679,12 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                           <Slider
                             id="num_frames_slider"
                             min={16}
-                            max={150}
+                            max={160}
                             value={num_frames}
                             onChange={handleNumFramesChange}
                             showBoundaries
                             showTicks
-                            step={1}
+                            step={4}
                           />
                         </div>
                       </FormGroup>
@@ -725,11 +745,11 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
               <CardBody>
                 {progressVisible &&
                   <Progress
-                    title="Generation progress"
-                    value={baseStep + refinerStep}
-                    valueText={`Step ${baseStep + refinerStep} out of ${num_inference_steps} - ${phase} phase`}
-                    label={`Step ${baseStep + refinerStep} out of ${num_inference_steps} - ${phase} phase`}
-                    max={generateParameters.num_inference_steps}
+                    title={modelOption === 'wan' ? "Video Generation Progress" : "Image Generation Progress"}
+                    value={progressPct}
+                    valueText={`${progressPct}% - ${phase} phase`}
+                    label={`Step ${baseStep + refinerStep} of ${num_inference_steps}`}
+                    max={100}
                     measureLocation={ProgressMeasureLocation.top}
                     style={{ paddingBottom: '1rem' }}
                   />

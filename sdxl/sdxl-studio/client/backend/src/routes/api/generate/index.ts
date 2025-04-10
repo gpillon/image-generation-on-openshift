@@ -51,10 +51,13 @@ export default async (fastify: FastifyInstance): Promise<void> => {
 
     // Add video-specific parameters when needed
     if (model === 'wan' && num_frames) {
-      data.num_frames = num_frames;
+      data.num_frames = num_frames || 80;
     }
     if (model === 'wan' && fps) {
-      data.fps = fps;
+      data.fps = fps || 16;
+    }
+    if (model === 'wan' && num_inference_steps) {
+      data.num_inference_steps = num_inference_steps || 50;
     }
 
     updateLastActivity();
