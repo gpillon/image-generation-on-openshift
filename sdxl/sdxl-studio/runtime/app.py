@@ -227,7 +227,7 @@ async def get_video(job_id: str):
     GET endpoint to serve the generated video file for a specific job.
     Returns the video file as a streaming response.
     """
-    video_path = f"temp_output.mp4"
+    video_path = f"/tmp/temp_output.mp4"
     
     if not os.path.exists(video_path):
         raise HTTPException(status_code=404, detail="Video file not found")
