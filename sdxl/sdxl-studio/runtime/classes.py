@@ -27,6 +27,8 @@ class GenerationRequest(BaseModel):
     negative_original_size: Optional[Tuple[int, int]] = None
     negative_crops_coords_top_left: Tuple[int, int] = (0, 0)
     negative_target_size: Optional[Tuple[int, int]] = None
+    num_frames: Optional[int] = 81
+    fps: Optional[int] = 15
 
     model_config = {
         "json_schema_extra": {

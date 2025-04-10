@@ -49,6 +49,7 @@
     "fastify": "^4.29.0",
     "fastify-sse-v2": "^4.2.1",
     "pino": "^8.21.0",
+    "sdxl-studio-backend": "file:",
     "ts-node": "^10.9.2",
     "ws": "^8.18.1"
   },

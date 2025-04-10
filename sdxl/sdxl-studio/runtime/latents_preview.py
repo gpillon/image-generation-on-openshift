@@ -137,3 +137,86 @@ def process_flux_latents(flux_pipeline, latents):
         img_bytes.seek(0)
         image_data = img_bytes.read()
         return base64.b64encode(image_data).decode("utf-8")
+
+
+def process_wan_latents(wan_pipeline, latents):
+    """
+    Process the given latents from a WAN model to generate a base64 encoded preview image.
+    For WAN text-to-video models, shows intermediate frames during generation.
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+    
+    try:
+        # Handle the case where wan_pipeline is the direct pipeline object or has a pipeline attribute
+        try:
+            pipe = wan_pipeline.pipeline
+        except (AttributeError, TypeError):
+            pipe = wan_pipeline  # Use wan_pipeline directly if it doesn't have .pipeline
+        
+        print(f"WAN latents shape: {latents.shape}, dtype: {latents.dtype}")
+        
+        with torch.no_grad():
+            # For video generation, latents often have shape [batch, frames, channels, height, width]
+            # or [batch, channels, frames, height, width]
+            
+            # Try to decode the latents using the VAE if possible
+            try:
+                if latents.dim() == 5:
+                    # Get middle frame for preview
+                    if latents.shape[1] > latents.shape[2]:  # [B, F, C, H, W] format
+                        middle_frame_idx = latents.shape[1] // 2
+                        latent_frame = latents[:, middle_frame_idx]
+                    else:  # [B, C, F, H, W] format
+                        middle_frame_idx = latents.shape[2] // 2
+                        latent_frame = latents[:, :, middle_frame_idx]
+                    
+                    # Decode the middle frame
+                    images = pipe.vae.decode(latent_frame.to(device=device, dtype=torch.float16)).sample
+                    images = (images / 2 + 0.5).clamp(0, 1)
+                    images = images.cpu().permute(0, 2, 3, 1).numpy()
+                    image = Image.fromarray((images[0] * 255).round().astype("uint8"))
+                else:
+                    # Fallback - create a placeholder showing latent shape
+                    placeholder = Image.new('RGB', (512, 512), color=(100, 100, 100))
+                    from PIL import ImageDraw
+                    draw = ImageDraw.Draw(placeholder)
+                    draw.text((10, 10), f"Video processing: Latent shape {latents.shape}", fill=(255, 255, 255))
+                    image = placeholder
+            except Exception as e:
+                print(f"Error decoding WAN latents: {e}")
+                # Create a basic visualization as fallback
+                placeholder = Image.new('RGB', (512, 512), color=(100, 150, 200))
+                from PIL import ImageDraw
+                draw = ImageDraw.Draw(placeholder)
+                draw.text((10, 10), f"Video generation in progress", fill=(255, 255, 255))
+                draw.text((10, 30), f"Frame shape: {latents.shape}", fill=(255, 255, 255))
+                image = placeholder
+            
+            # Resize the image to save bandwidth
+            width, height = image.size
+            resized_image = image.resize((width // 2, height // 2))
+            
+            img_bytes = io.BytesIO()
+            resized_image.save(img_bytes, format="PNG")
+            img_bytes.seek(0)
+            image_data = img_bytes.read()
+            encoded_image = base64.b64encode(image_data).decode("utf-8")
+            
+            return encoded_image
+    
+    except Exception as e:
+        print(f"Error processing WAN latents: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Fallback to a placeholder image if processing fails
+        placeholder = Image.new('RGB', (256, 256), color='blue')
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(placeholder)
+        draw.text((20, 100), f"Video processing: {str(e)[:50]}...", fill=(255, 255, 255))
+        
+        img_bytes = io.BytesIO()
+        placeholder.save(img_bytes, format="PNG")
+        img_bytes.seek(0)
+        image_data = img_bytes.read()
+        return base64.b64encode(image_data).decode("utf-8")

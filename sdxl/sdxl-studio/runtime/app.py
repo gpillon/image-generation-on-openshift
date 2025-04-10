@@ -16,8 +16,9 @@ from pydantic import BaseModel
 from classes import GenerationRequest, GenerationResponse, HealthCheckResponse, Job
 from diffusers_model import DiffusersPipeline
 from flux_model import FluxModelPipeline
+from wan_model import WanModelPipeline
 from helpers import logging_config, parse_args
-from latents_preview import process_latents, process_flux_latents
+from latents_preview import process_latents, process_flux_latents, process_wan_latents
 from watermark import add_watermark
 
 # Load local env vars if present
@@ -219,6 +220,28 @@ async def get_job_status(job_id: str):
     return msg
 
 
+@app.get("/video/{job_id}")
+async def get_video(job_id: str):
+    """
+    GET endpoint to serve the generated video file for a specific job.
+    Returns the video file as a streaming response.
+    """
+    video_path = f"temp_output.mp4"
+    
+    if not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="Video file not found")
+    
+    def iterfile():
+        with open(video_path, mode="rb") as file_like:
+            yield from file_like
+    
+    return StreamingResponse(
+        iterfile(),
+        media_type="video/mp4",
+        headers={"Content-Disposition": f"attachment; filename=video_{job_id}.mp4"}
+    )
+
+
 ##################################
 # Background queue processing    #
 ##################################
@@ -252,6 +275,8 @@ async def worker(worker_id, job_queue, pipeline_instance):
                 # Use appropriate latent processing function based on pipeline type
                 if isinstance(pipeline_instance, FluxModelPipeline):
                     base64_image = process_flux_latents(pipeline_instance, latents)
+                elif isinstance(pipeline_instance, WanModelPipeline):
+                    base64_image = process_wan_latents(pipeline_instance, latents)
                 else:
                     base64_image = process_latents(pipeline_instance, latents)
                 future = asyncio.run_coroutine_threadsafe(
@@ -273,6 +298,8 @@ async def worker(worker_id, job_queue, pipeline_instance):
                 # Use appropriate latent processing function based on pipeline type
                 if isinstance(pipeline_instance, FluxModelPipeline):
                     base64_image = process_flux_latents(pipeline_instance, latents)
+                elif isinstance(pipeline_instance, WanModelPipeline):
+                    base64_image = process_wan_latents(pipeline_instance, latents)
                 else:
                     base64_image = process_latents(pipeline_instance, latents)
                 future = asyncio.run_coroutine_threadsafe(
@@ -314,6 +341,20 @@ async def worker(worker_id, job_queue, pipeline_instance):
                 job.result = watermarked_image
             else:
                 job.result = encoded_image
+
+            # For WAN models, send additional video info
+            if isinstance(pipeline_instance, WanModelPipeline):
+                # Get the video path
+                video_path = os.path.abspath("temp_output.mp4")
+                if os.path.exists(video_path):
+                    await job.notification_queue.put(
+                        {
+                            "status": "video_ready",
+                            "video_path": video_path,
+                            "fps": getattr(job.request, 'fps', 15),
+                            "num_frames": getattr(job.request, 'num_frames', 81),
+                        }
+                    )
 
             # Handle the result and notify the client
             await job.notification_queue.put(
@@ -357,6 +398,9 @@ async def process_queue():
             if args.model_type == "flux":
                 _log.info(f"Worker {i}: Creating Flux pipeline...")
                 pipeline_instance = FluxModelPipeline(args)
+            elif args.model_type == "wan":
+                _log.info(f"Worker {i}: Creating WAN pipeline...")
+                pipeline_instance = WanModelPipeline(args)
             else:
                 _log.info(f"Worker {i}: Creating SDXL pipeline...")
                 pipeline_instance = DiffusersPipeline(args)

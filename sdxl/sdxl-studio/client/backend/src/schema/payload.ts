@@ -8,4 +8,7 @@ export interface Payload {
   denoising_limit: number;
   past_threshold: boolean;
   image_failed_check: boolean;
+  // Video-specific parameters
+  num_frames?: number;
+  fps?: number;
 }

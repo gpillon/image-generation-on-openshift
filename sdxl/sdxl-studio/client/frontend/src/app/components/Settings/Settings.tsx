@@ -14,12 +14,16 @@ class EndpointSettings {
     endpointToken: string;
     fluxEndpointUrl: string;
     fluxEndpointToken: string;
+    wanEndpointUrl: string;
+    wanEndpointToken: string;
 
-    constructor(endpointURL, endpointToken: string, fluxEndpointURL, fluxEndpointToken: string) {
+    constructor(endpointURL, endpointToken: string, fluxEndpointURL, fluxEndpointToken: string, wanEndpointURL, wanEndpointToken: string) {
         this.endpointUrl = endpointURL ?? '';
         this.endpointToken = endpointToken ?? '';
         this.fluxEndpointUrl = fluxEndpointURL ?? '';
         this.fluxEndpointToken = fluxEndpointToken ?? '';
+        this.wanEndpointUrl = wanEndpointURL ?? '';
+        this.wanEndpointToken = wanEndpointToken ?? '';
     }
 }
 
@@ -40,19 +44,19 @@ const SettingsManagement: React.FunctionComponent<SettingsProps> = () => {
 
     /* SDXL Settings Management */
 
-    const [endpointSettings, setEndpointSettings] = React.useState<EndpointSettings>(new EndpointSettings('', '', '', ''));
+    const [endpointSettings, setEndpointSettings] = React.useState<EndpointSettings>(new EndpointSettings('', '', '', '', '', ''));
     const [endpointSettingsChanged, setEndpointSettingsChanged] = React.useState<boolean>(false);
 
     const [showEndpointToken, setEndpointShowToken] = React.useState<boolean>(false);
     const [showFluxEndpointToken, setFluxEndpointShowToken] = React.useState<boolean>(false);
-    
+    const [showWanEndpointToken, setWanEndpointShowToken] = React.useState<boolean>(false);
 
     React.useEffect(() => {
         axios.get(`${config.backend_api_url}/settings/sdxl-endpoint`)
             .then((response) => {
                 const { settings } = response.data;
                 if (settings !== undefined) {
-                    setEndpointSettings(new EndpointSettings(settings.endpointUrl, settings.endpointToken, settings.fluxEndpointUrl, settings.fluxEndpointToken));
+                    setEndpointSettings(new EndpointSettings(settings.endpointUrl, settings.endpointToken, settings.fluxEndpointUrl, settings.fluxEndpointToken, settings.wanEndpointUrl, settings.wanEndpointToken));
                 }
             })
             .catch((error) => {
@@ -181,8 +185,37 @@ const SettingsManagement: React.FunctionComponent<SettingsProps> = () => {
                                     </TextInputGroupUtilities>
                                 </TextInputGroup>
                             </FormGroup>
-                            
-                            
+                            <FormGroup label="WAN URL" fieldId="url">
+                                <TextInput
+                                    className='form-settings-long'
+                                    value={endpointSettings.wanEndpointUrl}
+                                    onChange={(_event, value) => handleEndpointChange(value, 'wanEndpointUrl')}
+                                    id="wanEndpointUrl"
+                                    name="wanEndpointUrl"
+                                />
+                            </FormGroup>
+                            <FormGroup label="WAN Token" fieldId="wanToken">
+                                <TextInputGroup className='form-settings'>
+                                    <TextInputGroupMain
+                                        value={endpointSettings.wanEndpointToken}
+                                        onChange={(_event, value) => handleEndpointChange(value, 'wanEndpointToken')}
+                                        id="wanEndpointToken"
+                                        name="wanEndpointToken"
+                                        type={showFluxEndpointToken ? 'text' : 'password'}
+                                    />
+                                    <TextInputGroupUtilities>
+                                        <Button
+                                            variant="plain"
+                                            aria-label={showWanEndpointToken ? 'Hide token' : 'Show token'}
+                                            onClick={() => setWanEndpointShowToken(!showWanEndpointToken)}
+                                        >
+                                            <EyeIcon />
+                                        </Button>
+                                    </TextInputGroupUtilities>
+                                </TextInputGroup>
+                            </FormGroup>
+
+
                             <Flex>
                                 <FlexItem>
                                     <Button type="submit" className='form-settings-submit' isDisabled={!endpointSettingsChanged}>Save Endpoint Settings</Button>

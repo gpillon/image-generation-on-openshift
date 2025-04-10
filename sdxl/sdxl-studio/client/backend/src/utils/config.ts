@@ -4,6 +4,8 @@ let endpointURL = process.env.SDXL_ENDPOINT_URL || '';
 let endpointToken = process.env.SDXL_ENDPOINT_TOKEN || '';
 let fluxEndpointURL = process.env.FLUX_ENDPOINT_URL || '';
 let fluxEndpointToken = process.env.FLUX_ENDPOINT_TOKEN || '';
+let wanEndpointURL = process.env.WAN_ENDPOINT_URL || '';
+let wanEndpointToken = process.env.WAN_ENDPOINT_TOKEN || '';
 let guardEndpointURL = process.env.GUARD_ENDPOINT_URL || '';
 let guardEndpointToken = process.env.GUARD_ENDPOINT_TOKEN || '';
 let guardEnabled = process.env.GUARD_ENABLED || 'true';
@@ -32,9 +34,21 @@ export const getFluxEndpoint = (): any => {
   };
 };
 
+export const getWanEndpoint = (): any => {
+  return {
+    endpointURL: wanEndpointURL.replace(/\/$/, ''),
+    endpointToken: wanEndpointToken,
+  };
+};
+
 export const setFluxEndpoint = (url: string, token: string): void => {
   fluxEndpointURL = url;
   fluxEndpointToken = token;
+};
+
+export const setWanEndpoint = (url: string, token: string): void => {
+  wanEndpointURL = url;
+  wanEndpointToken = token;
 };
 
 export const setGuardEndpoint = (url: string, token: string): void => {

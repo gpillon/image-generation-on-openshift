@@ -10,6 +10,10 @@ import DocumentRenderer from '../DocumentRenderer/DocumentRenderer';
 interface SDXLMiniStudioProps { }
 
 class GenerateParameters {
+  static denoising_limit_models: string[] = ['sdxl'];
+  static num_frames_models: string[] = ['wan'];
+  static fps_models: string[] = ['wan'];
+
   prompt: string;
   guidance_scale: number;
   num_inference_steps: number;
@@ -18,6 +22,9 @@ class GenerateParameters {
   height: number;
   denoising_limit: number;
   model: string;
+  num_frames?: number;
+  fps?: number;
+
 
   constructor(
     prompt: string = 'A cat with a red fedora holding a sign that says "Flux Studio"',
@@ -27,7 +34,9 @@ class GenerateParameters {
     model: string = 'sdxl',
     width: number = 1024,
     height: number = 1024,
-    denoising_limit: number = 0.8
+    denoising_limit: number = 0.8,
+    num_frames: number = 81,
+    fps: number = 15
   ) {
     this.prompt = prompt;
     this.guidance_scale = guidance_scale;
@@ -37,6 +46,12 @@ class GenerateParameters {
     this.height = height;
     this.denoising_limit = denoising_limit;
     this.model = model;
+
+    // Only add video params for WAN model
+    if (model === 'wan') {
+      this.num_frames = num_frames;
+      this.fps = fps;
+    }
   }
 }
 
@@ -61,19 +76,21 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
   }
 
   const sizeOptions = [
-    { value: 'standard', label: 'Standard, 1:1, 1024 x 1024' },
-    { value: 'small', label: 'Small, 1:1, 512 x 512' },
-    { value: 'vertical', label: 'Vertical, 4:7, 768 x 1344' },
-    { value: 'portrait', label: 'Portrait, 7:9, 896 x 1152' },
-    { value: 'photo', label: 'Photo, 9:7, 1152 x 896' },
-    { value: 'landscape', label: 'Landscape, 19:13, 1216 x 832' },
-    { value: 'widescreen', label: 'Widescreen, 7:4, 1344 x 768' },
-    { value: 'cinematic', label: 'Cinematic, 12:5, 1536 x 640' },
+    { value: 'standard', label: 'Standard, 1:1, 1024 x 1024', models: ['sdxl', 'flux'] },
+    { value: 'small', label: 'Small, 1:1, 512 x 512', models: ['sdxl', 'flux'] },
+    { value: 'vertical', label: 'Vertical, 4:7, 768 x 1344', models: ['sdxl', 'flux'] },
+    { value: 'portrait', label: 'Portrait, 7:9, 896 x 1152', models: ['sdxl', 'flux'] },
+    { value: 'photo', label: 'Photo, 9:7, 1152 x 896', models: ['sdxl', 'flux'] },
+    { value: 'landscape', label: 'Landscape, 19:13, 1216 x 832', models: ['sdxl', 'flux'] },
+    { value: 'widescreen', label: 'Widescreen, 7:4, 1344 x 768', models: ['sdxl', 'flux'] },
+    { value: 'cinematic', label: 'Cinematic, 12:5, 1536 x 640', models: ['sdxl', 'flux'] },
+    { value: 'standard', label: 'Standard, 1:1, 480 x 480', models: ['wan'] },
   ];
 
   const modelOptions = [
     { value: 'sdxl', label: 'SDXL' },
     { value: 'flux', label: 'Flux' },
+    { value: 'wan', label: 'WAN (Video)' },
   ];
 
   const [sizeOption, setSizeOption] = React.useState('standard');
@@ -134,6 +151,17 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
         setNumInferenceSteps(4)
         handleGenerateParametersChange(4, 'num_inference_steps');
         break;
+      case 'wan':
+        setNumInferenceSteps(30)
+        handleGenerateParametersChange(30, 'num_inference_steps');
+        // Set default video params
+        handleGenerateParametersChange(81, 'num_frames');
+        handleGenerateParametersChange(16, 'fps');
+        // For videos, use landscape format
+        setSizeOption('standard');
+        handleGenerateParametersChange(480, 'width');
+        handleGenerateParametersChange(480, 'height');
+        break;
     }
   }
 
@@ -151,9 +179,22 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
 
   const [fileData, setFileData] = React.useState('');
   const [fileName, setFileName] = React.useState('');
+  const [videoUrl, setVideoUrl] = React.useState('');
   const [phase, setPhase] = React.useState('Base');
   const [baseStep, setBaseStep] = React.useState(0);
   const [refinerStep, setRefinerStep] = React.useState(0);
+
+  const [num_frames, setNumFrames] = React.useState(81);
+  const handleNumFramesChange = (_event: SliderOnChangeEvent, value: number) => {
+    setNumFrames(value);
+    handleGenerateParametersChange(value, 'num_frames');
+  }
+
+  const [fps, setFps] = React.useState(15);
+  const handleFpsChange = (_event: SliderOnChangeEvent, value: number) => {
+    setFps(value);
+    handleGenerateParametersChange(value, 'fps');
+  }
 
   const handleGenerateImage = (event) => {
     event.preventDefault();
@@ -215,11 +256,21 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
               setProgressVisible(false);
               setFileName('');
               setFileData('');
+              setVideoUrl('');
+            }
+
+            // For WAN model, handle video ready notification
+            if (msg.status && msg.status === 'video_ready') {
+              setVideoUrl(`${config.backend_api_url}/generate/video/${job_id}?model=wan`);
             }
 
             // If this is a progress update, update UI elements.
             if (msg.status && msg.status === 'progress') {
-              setImagePanelTitle('The image is being generated...');
+              if (model === 'wan') {
+                setImagePanelTitle('The video is being generated...');
+              } else {
+                setImagePanelTitle('The image is being generated...');
+              }
               setProgressVisible(true);
               if (msg.pipeline && msg.pipeline === 'base') {
                 setPhase('Base');
@@ -256,8 +307,10 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                 Emitter.emit('notification', {
                   variant: 'success',
                   title: '',
-                  description: msg.description || 'Image generated!',
-                });  
+                  description: model === 'wan'
+                    ? 'Video generated! Check the Video Output panel.'
+                    : (msg.description || 'Image generated!'),
+                });
               }
 
               ws.close();
@@ -287,7 +340,7 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
           title: '',
           description:
             'Connection failed with the error: ' +
-            (error.response && error.response.data && error.response.data.message 
+            (error.response && error.response.data && error.response.data.message
               ? error.response.data.message
               : error.message),
         });
@@ -309,13 +362,16 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
     setRefinerStep(0);
     setFileData('');
     setFileName('');
+    setVideoUrl('');
+    setNumFrames(81);
+    setFps(16);
   }
 
   return (
     <Page className='sdxl-ministudio'>
       <PageSection>
         <TextContent>
-          <Text component={TextVariants.h1}>SDXL Mini Studio</Text>
+          <Text component={TextVariants.h1}>SDXL & Video Generation Studio</Text>
         </TextContent>
       </PageSection>
       <PageSection>
@@ -438,7 +494,7 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                       aria-label="size"
                       onChange={handleSizeOptionChange}
                     >
-                      {sizeOptions.map((option, index) => (
+                      {sizeOptions.filter(option => option.models.includes(modelOption)).map((option, index) => (
                         <FormSelectOption key={index} value={option.value} label={option.label} />
                       ))}
                     </FormSelect>
@@ -529,9 +585,10 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                       step={1}
                     />
                   </FormGroup>
-                  <FormGroup
-                    label={`Denoising Limit: ${denoising_limit} %`}
-                    fieldId="denoising_limit"
+                  {GenerateParameters.denoising_limit_models.includes(modelOption) && (
+                    <FormGroup
+                      label={`Denoising Limit: ${denoising_limit} %`}
+                      fieldId="denoising_limit"
                     labelIcon={
                       <Popover
                         bodyContent={
@@ -569,11 +626,92 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                       min={1}
                       max={99}
                       step={1}
-                    />
-                  </FormGroup>
+                      />
+                    </FormGroup>
+                  )}
+                  {GenerateParameters.num_frames_models.includes(modelOption) && (
+                    <>
+                      <FormGroup
+                        label="Number of frames"
+                        fieldId="num_frames"
+                        labelIcon={
+                          <Popover
+                            headerContent={<div>Number of frames to generate</div>}
+                            bodyContent={
+                              <div>
+                                <p>Controls the duration of the generated video. More frames means a longer video.</p>
+                                <p>Default is 81 frames which produces a ~5 second video at 15 fps.</p>
+                              </div>
+                            }
+                          >
+                            <button
+                              type="button"
+                              aria-label="More info for frames field"
+                              onClick={(e) => e.preventDefault()}
+                              className={`${styles.formGroupLabelHelp}`}
+                            >
+                              <HelpIcon />
+                            </button>
+                          </Popover>
+                        }
+                      >
+                        <div>
+                          <Slider
+                            id="num_frames_slider"
+                            min={16}
+                            max={150}
+                            value={num_frames}
+                            onChange={handleNumFramesChange}
+                            showBoundaries
+                            showTicks
+                            step={1}
+                          />
+                        </div>
+                      </FormGroup>
+                      <FormGroup
+                        label="Frames per second (fps)"
+                        fieldId="fps"
+                        labelIcon={
+                          <Popover
+                            headerContent={<div>FPS (Frames per second)</div>}
+                            bodyContent={
+                              <div>
+                                <p>Controls how fast the generated video will play.</p>
+                                <p>Lower values create slower videos, higher values create faster videos.</p>
+                              </div>
+                            }
+                          >
+                            <button
+                              type="button"
+                              aria-label="More info for fps field"
+                              onClick={(e) => e.preventDefault()}
+                              className={`${styles.formGroupLabelHelp}`}
+                            >
+                              <HelpIcon />
+                            </button>
+                          </Popover>
+                        }
+                      >
+                        <div>
+                          <Slider
+                            id="fps_slider"
+                            min={4}
+                            max={32}
+                            value={fps}
+                            onChange={handleFpsChange}
+                            showBoundaries
+                            showTicks
+                            step={4}
+                          />
+                        </div>
+                      </FormGroup>
+                    </>
+                  )}
                   <ActionGroup>
-                    <Button type="submit" variant="primary">Generate the image</Button>
-                    <Button variant="secondary" onClick={handleReset}>Reset</Button>
+                    <Button type="submit" variant="primary">
+                      {modelOption === 'wan' ? 'Generate the video' : 'Generate the image'}
+                    </Button>
+                    <Button type="reset" variant="secondary" onClick={handleReset}>Reset</Button>
                   </ActionGroup>
                 </Form>
               </CardBody>
@@ -581,7 +719,9 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
           </FlexItem>
           <FlexItem flex={{ default: 'flex_3' }}>
             <Card component="div">
-              <CardTitle>{imagePanelTitle}</CardTitle>
+              <CardTitle>
+                {modelOption === 'wan' ? 'Video Output' : 'Image Output'}: {imagePanelTitle}
+              </CardTitle>
               <CardBody>
                 {progressVisible &&
                   <Progress
@@ -596,6 +736,29 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                 }
                 {documentRendererVisible && <DocumentRenderer fileData={fileData} fileName={fileName} width={generateParameters.width} height={generateParameters.height} />}
                 {!documentRendererVisible && <p>Enter the description of the image to generate in the prompt, adjust the parameters if you want, and click on <b>Generate the image</b>.</p>}
+                {videoUrl && (
+                  <div style={{ marginTop: '20px' }}>
+                    <h3>Generated Video</h3>
+                    <video
+                      controls
+                      width="100%"
+                      src={videoUrl}
+                      style={{ maxHeight: '600px', objectFit: 'contain' }}
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                    <Button
+                      variant="secondary"
+                      component="a"
+                      href={videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download
+                    >
+                      Download Video
+                    </Button>
+                  </div>
+                )}
               </CardBody>
             </Card>
           </FlexItem>

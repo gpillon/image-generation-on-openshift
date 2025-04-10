@@ -27,8 +27,8 @@ def parse_args():
         "--model-type",
         type=str,
         default=os.getenv("MODEL_TYPE", "sdxl"),
-        choices=["sdxl", "flux"],
-        help="Model type to use (sdxl or flux)",
+        choices=["sdxl", "flux", "wan"],
+        help="Model type to use (sdxl, flux, or wan)",
     )
     parser.add_argument(
         "--model-id",

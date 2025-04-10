@@ -9,6 +9,7 @@ import {
   getSafetyCheckConfig,
   updateLastActivity,
   getFluxEndpoint,
+  getWanEndpoint,
 } from '../../../utils/config'; // Adjust the import path as needed
 import guard from '../../../services/guard';
 import safetyChecker from '../../../services/image-safety-check';
@@ -32,6 +33,8 @@ export default async (fastify: FastifyInstance): Promise<void> => {
       height,
       model,
       denoising_limit,
+      num_frames,
+      fps,
     } = req.body as any;
 
     const data: Payload = {
@@ -46,6 +49,14 @@ export default async (fastify: FastifyInstance): Promise<void> => {
       image_failed_check: false,
     };
 
+    // Add video-specific parameters when needed
+    if (model === 'wan' && num_frames) {
+      data.num_frames = num_frames;
+    }
+    if (model === 'wan' && fps) {
+      data.fps = fps;
+    }
+
     updateLastActivity();
 
     let modelEndpoint;
@@ -55,6 +66,9 @@ export default async (fastify: FastifyInstance): Promise<void> => {
         break;
       case 'flux':
         modelEndpoint = getFluxEndpoint();
+        break;
+      case 'wan':
+        modelEndpoint = getWanEndpoint();
         break;
       default:
         reply.code(400).send({ message: 'Invalid model' });
@@ -129,6 +143,9 @@ export default async (fastify: FastifyInstance): Promise<void> => {
         break;
       case 'flux':
         modelEndpoint = getFluxEndpoint();
+        break;
+      case 'wan':
+        modelEndpoint = getWanEndpoint();
         break;
       default:
         connection.socket.send(JSON.stringify({ error: 'Invalid model' }));
@@ -212,5 +229,38 @@ export default async (fastify: FastifyInstance): Promise<void> => {
         apiWs.close();
       }
     });
+  });
+
+  // =======================================================
+  // 3. Video Download Endpoint: Get the generated video
+  // =======================================================
+  fastify.get('/video/:job_id', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { job_id } = req.params as { job_id: string };
+    const { model } = req.query as { model: string };
+    
+    if (model !== 'wan') {
+      reply.code(400).send({ message: 'Invalid model for video download' });
+      return;
+    }
+
+    try {
+      const modelEndpoint = getWanEndpoint();
+      
+      // Forward the video request to the WAN endpoint
+      const response = await axios({
+        method: 'get',
+        url: `${modelEndpoint.endpointURL}/video/${job_id}?user_key=${modelEndpoint.endpointToken}`,
+        responseType: 'stream'
+      });
+      
+      // Forward the stream response
+      reply.header('Content-Type', 'video/mp4');
+      reply.header('Content-Disposition', `attachment; filename=video_${job_id}.mp4`);
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching video:', error);
+      reply.code(500).send({ message: 'Error fetching video' });
+    }
   });
 };
