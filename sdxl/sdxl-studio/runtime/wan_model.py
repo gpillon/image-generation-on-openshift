@@ -61,7 +61,7 @@ class WanModelPipeline:
                 pipeline = pipeline.to("cpu")
             else:
                 _log.info("Moving model to CUDA")
-                pipeline = pipeline.to("cuda")
+                # pipeline = pipeline.to("cuda")
 
             pipeline.enable_model_cpu_offload()
             self.pipeline = pipeline
