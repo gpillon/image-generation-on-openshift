@@ -74,7 +74,8 @@ def process_flux_latents(flux_pipeline, latents):
                 # If we have more channels, we can use PCA or other methods to reduce to 3 channels
                 rgb_channels = latents_reshaped[:, :, :3]
                 
-                # Normalize each channel independently to 0-1 range
+                # Convert to numpy array and normalize each channel independently to 0-1 range
+                rgb_channels = rgb_channels.detach().cpu().numpy()
                 for i in range(3):
                     channel = rgb_channels[:, :, i]
                     min_val = channel.min()
