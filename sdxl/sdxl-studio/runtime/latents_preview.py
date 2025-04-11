@@ -63,13 +63,12 @@ def process_flux_latents(flux_pipeline, latents):
                     raise e
                     
             elif latents.dim() == 3:
-                # Handle 3D latents with shape [1, 1024, 64]
+                # Handle 3D latents with shape [1, 4096, 64]
                 print(f"Processing 3D latents with shape {latents.shape}")
                 
                 # For 3D latents, we'll create a color visualization
-                # Reshape to [1, 32, 32, 64] assuming square dimensions
-                # This assumes the 1024 can be reshaped to 32x32
-                latents_reshaped = latents[0].reshape(32, 32, 64)
+                # Reshape to [64, 64, 64] since 4096 = 64x64
+                latents_reshaped = latents[0].reshape(64, 64, 64)
                 
                 # Take the first 3 channels for RGB visualization
                 # If we have more channels, we can use PCA or other methods to reduce to 3 channels
