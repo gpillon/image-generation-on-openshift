@@ -13,6 +13,8 @@ class GenerateParameters {
   static denoising_limit_models: string[] = ['sdxl'];
   static num_frames_models: string[] = ['wan'];
   static fps_models: string[] = ['wan'];
+  static video_models: string[] = ['wan'];
+  static image_models: string[] = ['sdxl', 'flux'];
 
   prompt: string;
   guidance_scale: number;
@@ -48,7 +50,7 @@ class GenerateParameters {
     this.model = model;
 
     // Only add video params for WAN model
-    if (model === 'wan') {
+    if (GenerateParameters.video_models.includes(model)) {
       this.num_frames = num_frames;
       this.fps = fps;
     }
@@ -84,7 +86,8 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
     { value: 'landscape', label: 'Landscape, 19:13, 1216 x 832', models: ['sdxl', 'flux'] },
     { value: 'widescreen', label: 'Widescreen, 7:4, 1344 x 768', models: ['sdxl', 'flux'] },
     { value: 'cinematic', label: 'Cinematic, 12:5, 1536 x 640', models: ['sdxl', 'flux'] },
-    { value: 'standard', label: 'Standard, 1:1, 480 x 480', models: ['wan'] },
+    { value: 'standard-video', label: 'Standard, 1:1, 832 x 480', models: ['wan'] },
+    { value: 'square-video', label: 'Square, 1:1, 480 x 480', models: ['wan'] },
   ];
 
   const modelOptions = [
@@ -128,6 +131,14 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
         handleGenerateParametersChange(1536, 'width');
         handleGenerateParametersChange(640, 'height');
         break;
+      case 'standard-video':
+        handleGenerateParametersChange(832, 'width');
+        handleGenerateParametersChange(480, 'height');
+        break;
+      case 'square-video':
+        handleGenerateParametersChange(480, 'width');
+        handleGenerateParametersChange(480, 'height');
+        break;
     }
     setSizeOption(value);
   }
@@ -152,16 +163,16 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
         handleGenerateParametersChange(4, 'num_inference_steps');
         break;
       case 'wan':
-        setNumInferenceSteps(30)
-        handleGenerateParametersChange(30, 'num_inference_steps');
+        setNumInferenceSteps(50)
+        handleGenerateParametersChange(50, 'num_inference_steps');
         // Set default video params
         setNumFrames(40);
         handleGenerateParametersChange(40, 'num_frames');
         setFps(16);
         handleGenerateParametersChange(16, 'fps');
         // For videos, use landscape format
-        setSizeOption('standard');
-        handleGenerateParametersChange(480, 'width');
+        setSizeOption('standard-video');
+        handleGenerateParametersChange(832, 'width');
         handleGenerateParametersChange(480, 'height');
         break;
     }
@@ -251,9 +262,9 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
             // If this is a queue update, update queue info.
             if (msg.status && msg.status === 'queued') {
               if (msg.position === -1) {
-                setImagePanelTitle('Image generation is starting...');
+                setImagePanelTitle(GenerateParameters.video_models.includes(model) ? 'Video generation is starting...' : 'Image generation is starting...');
               } else if (msg.position === 1) {
-                setImagePanelTitle('You are next! (#1 in the queue)');
+                setImagePanelTitle(GenerateParameters.video_models.includes(model) ? 'You are next! (#1 in the queue)' : 'You are next! (#1 in the queue)');
               }
               else {
                 setImagePanelTitle('Currently serving others, you are #' + msg.position + ' in the queue.');
@@ -266,16 +277,12 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
 
             // For WAN model, handle video ready notification
             if (msg.status && msg.status === 'video_ready') {
-              setVideoUrl(`${config.backend_api_url}/generate/video/${job_id}?model=wan`);
+              setVideoUrl(`${config.backend_api_url}/generate/video/${job_id}?model=${model}`);
             }
 
             // If this is a progress update, update UI elements.
             if (msg.status && msg.status === 'progress') {
-              if (model === 'wan') {
-                setImagePanelTitle(`Video generation in progress: ${msg.progress || 0}%`);
-              } else {
-                setImagePanelTitle(`Image generation in progress: ${msg.progress || 0}%`);
-              }
+              setImagePanelTitle((GenerateParameters.video_models.includes(model) ? 'Video' : 'Image') + ' generation in progress: ' + msg.progress + '%');
               setProgressVisible(true);
               setProgressPct(msg.progress || 0);
 
@@ -313,20 +320,20 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
 
                 // Handle warnings if present
                 if (msg.warning) {
-                  setImagePanelTitle(model === 'wan' ? 'Video generated with warnings' : 'Image generated with warnings');
+                  setImagePanelTitle(GenerateParameters.video_models.includes(model) ? 'Video generated with warnings' : 'Image generated with warnings');
                   Emitter.emit('notification', {
                     variant: 'warning',
                     title: '',
-                    description: model === 'wan'
+                    description: GenerateParameters.video_models.includes(model)
                       ? 'Video generated but with warnings. You can still download the video.'
                       : (msg.warning || 'Generation completed with warnings'),
                   });
                 } else {
-                  setImagePanelTitle((model === 'wan' ? 'Video' : 'Image') + ' generated in ' + msg.processing_time.toFixed(1) + ' seconds');
+                  setImagePanelTitle((GenerateParameters.video_models.includes(model) ? 'Video' : 'Image') + ' generated in ' + msg.processing_time.toFixed(1) + ' seconds');
                   Emitter.emit('notification', {
                     variant: 'success',
                     title: '',
-                    description: model === 'wan'
+                    description: GenerateParameters.video_models.includes(model)
                       ? 'Video generated! Check the Video Output panel.'
                       : (msg.description || 'Image generated!'),
                   });
@@ -683,6 +690,7 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                             value={num_frames}
                             onChange={handleNumFramesChange}
                             showBoundaries
+                            hasTooltipOverThumb
                             showTicks
                             step={4}
                           />
@@ -720,6 +728,7 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                             value={fps}
                             onChange={handleFpsChange}
                             showBoundaries
+                            hasTooltipOverThumb
                             showTicks
                             step={4}
                           />
@@ -729,7 +738,7 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                   )}
                   <ActionGroup>
                     <Button type="submit" variant="primary">
-                      {modelOption === 'wan' ? 'Generate the video' : 'Generate the image'}
+                      {GenerateParameters.video_models.includes(modelOption) ? 'Generate the video' : 'Generate the image'}
                     </Button>
                     <Button type="reset" variant="secondary" onClick={handleReset}>Reset</Button>
                   </ActionGroup>
@@ -740,12 +749,12 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
           <FlexItem flex={{ default: 'flex_3' }}>
             <Card component="div">
               <CardTitle>
-                {modelOption === 'wan' ? 'Video Output' : 'Image Output'}: {imagePanelTitle}
+                {GenerateParameters.video_models.includes(modelOption) ? 'Video Output' : 'Image Output'}: {imagePanelTitle}
               </CardTitle>
               <CardBody>
                 {progressVisible &&
                   <Progress
-                    title={modelOption === 'wan' ? "Video Generation Progress" : "Image Generation Progress"}
+                    title={GenerateParameters.video_models.includes(modelOption) ? "Video Generation Progress" : "Image Generation Progress"}
                     value={progressPct}
                     valueText={`${progressPct}% - ${phase} phase`}
                     label={`Step ${baseStep + refinerStep} of ${num_inference_steps}`}
@@ -754,8 +763,8 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                     style={{ paddingBottom: '1rem' }}
                   />
                 }
-                {documentRendererVisible && <DocumentRenderer fileData={fileData} fileName={fileName} width={generateParameters.width} height={generateParameters.height} />}
                 {!documentRendererVisible && <p>Enter the description of the image to generate in the prompt, adjust the parameters if you want, and click on <b>Generate the image</b>.</p>}
+                {documentRendererVisible && !videoUrl && <DocumentRenderer fileData={fileData} fileName={fileName} width={generateParameters.width} height={generateParameters.height} />}
                 {videoUrl && (
                   <div style={{ marginTop: '20px' }}>
                     <h3>Generated Video</h3>

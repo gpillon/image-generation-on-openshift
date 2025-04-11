@@ -80,7 +80,7 @@ class WanModelPipeline:
         negative_prompt = getattr(payload, 'negative_prompt', None)
         height = getattr(payload, 'height', 480)  # Default height for video
         width = getattr(payload, 'width', 832)    # Default width for video
-        num_frames = getattr(payload, 'num_frames', 81)  # Default number of frames
+        num_frames = getattr(payload, 'num_frames', 80)  # Default number of frames
         guidance_scale = getattr(payload, 'guidance_scale', 5.0)
         self.fps = getattr(payload, 'fps', 15)  # Get fps from payload
         num_inference_steps = getattr(payload, 'num_inference_steps', 50)
