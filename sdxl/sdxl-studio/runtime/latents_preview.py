@@ -48,7 +48,7 @@ def process_flux_latents(flux_pipeline, latents):
     try:
         # Convert latents to images directly using the VAE decoder if possible
         with torch.no_grad():
-            print(f"Flux latents shape: {latents.shape}, dtype: {latents.dtype}")
+            print(f"Flux latents shape: {latents.shape}, dtype: {latents.dtype}, dim: {latents.dim()}")
             
             # Handle different latent shapes
             if latents.dim() == 4:
@@ -66,32 +66,26 @@ def process_flux_latents(flux_pipeline, latents):
                 # Handle 3D latents with shape [1, 1024, 64]
                 print(f"Processing 3D latents with shape {latents.shape}")
                 
-                # For 3D latents, we need a different approach
-                # Typically these are attention maps or internal representations
-                # Let's visualize them as a grayscale heatmap
+                # For 3D latents, we'll create a color visualization
+                # Reshape to [1, 32, 32, 64] assuming square dimensions
+                # This assumes the 1024 can be reshaped to 32x32
+                latents_reshaped = latents[0].reshape(32, 32, 64)
                 
-                # Take the mean across the embedding dimension to get [1, 1024]
-                # Then reshape to a square image
-                heatmap = latents.mean(dim=2).detach().cpu().numpy()[0]  # Shape [1024]
+                # Take the first 3 channels for RGB visualization
+                # If we have more channels, we can use PCA or other methods to reduce to 3 channels
+                rgb_channels = latents_reshaped[:, :, :3]
                 
-                # Reshape to a square if possible, or use the closest square
-                size = int(heatmap.shape[0] ** 0.5)
-                if size * size == heatmap.shape[0]:
-                    # Perfect square
-                    heatmap_img = heatmap.reshape(size, size)
-                else:
-                    # Not a perfect square, pad to the next square
-                    next_square = (size + 1) ** 2
-                    padded = np.zeros(next_square)
-                    padded[:heatmap.shape[0]] = heatmap
-                    heatmap_img = padded.reshape(size + 1, size + 1)
+                # Normalize each channel independently to 0-1 range
+                for i in range(3):
+                    channel = rgb_channels[:, :, i]
+                    min_val = channel.min()
+                    max_val = channel.max()
+                    if max_val - min_val > 1e-6:
+                        rgb_channels[:, :, i] = (channel - min_val) / (max_val - min_val)
                 
-                # Normalize to 0-1 range
-                heatmap_img = (heatmap_img - heatmap_img.min()) / (heatmap_img.max() - heatmap_img.min() + 1e-6)
-                
-                # Convert to PIL Image
-                heatmap_img = (heatmap_img * 255).astype(np.uint8)
-                image = Image.fromarray(heatmap_img).convert('RGB')
+                # Convert to uint8 and create RGB image
+                rgb_image = (rgb_channels * 255).astype(np.uint8)
+                image = Image.fromarray(rgb_image)
                 
                 # Resize to a reasonable size
                 image = image.resize((512, 512), Image.LANCZOS)
@@ -116,7 +110,7 @@ def process_flux_latents(flux_pipeline, latents):
             img_bytes = io.BytesIO()
             resized_image.save(img_bytes, format="PNG")
             img_bytes.seek(0)
-            image_data = img_bytes.read()
+            image_data = img_bytes.read() 
             encoded_image = base64.b64encode(image_data).decode("utf-8")
             
             return encoded_image

@@ -37,7 +37,7 @@ class GenerateParameters {
     width: number = 1024,
     height: number = 1024,
     denoising_limit: number = 0.8,
-    num_frames: number = 81,
+    num_frames: number = 80,
     fps: number = 15
   ) {
     this.prompt = prompt;
@@ -197,7 +197,7 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
   const [baseStep, setBaseStep] = React.useState(0);
   const [refinerStep, setRefinerStep] = React.useState(0);
 
-  const [num_frames, setNumFrames] = React.useState(81);
+  const [num_frames, setNumFrames] = React.useState(80);
   const handleNumFramesChange = (_event: SliderOnChangeEvent, value: number) => {
     setNumFrames(value);
     handleGenerateParametersChange(value, 'num_frames');
@@ -216,6 +216,7 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
     event.preventDefault();
     setImagePanelTitle('Sending generation request');
     setDocumentRendererVisible(true);
+    setVideoUrl('');
     Emitter.emit('notification', {
       variant: 'success',
       title: '',
@@ -390,7 +391,7 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
     setFileData('');
     setFileName('');
     setVideoUrl('');
-    setNumFrames(81);
+    setNumFrames(80);
     setFps(16);
   }
 
@@ -667,7 +668,7 @@ const SDXLMiniStudio: React.FunctionComponent<SDXLMiniStudioProps> = () => {
                             bodyContent={
                               <div>
                                 <p>Controls the duration of the generated video. More frames means a longer video.</p>
-                                <p>Default is 81 frames which produces a ~5 second video at 15 fps.</p>
+                                <p>Default is 80 frames which produces a ~5 second video at 15 fps.</p>
                               </div>
                             }
                           >
