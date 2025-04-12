@@ -1,0 +1,30 @@
+FROM registry.access.redhat.com/ubi9/python-312
+
+USER root
+
+RUN yum upgrade -y && \
+    rm -rf /var/cache/dnf && \
+    find /var/log -type f -name "*.log" -exec rm -f {} \;
+
+WORKDIR /opt/app-root/src
+
+USER 1001
+
+# Install common requirements
+COPY --chown=1001:0 common/requirements.txt ./common-requirements.txt
+# Install model-specific requirements
+COPY --chown=1001:0 wan/requirements.txt ./wan-requirements.txt
+
+RUN pip install --prefer-binary --timeout 300 -r common-requirements.txt && \
+    pip install --prefer-binary --timeout 300 -r wan-requirements.txt && \
+    rm -f common-requirements.txt wan-requirements.txt && \
+    # Fix permissions to support pip in Openshift environments \
+    chmod -R g+w /opt/app-root/lib/python3.12/site-packages && \
+    fix-permissions /opt/app-root -P
+
+COPY --chown=1001:0 common ./common/
+COPY --chown=1001:0 wan ./wan/
+
+EXPOSE 8080
+
+ENTRYPOINT ["python3", "wan/app.py"] 

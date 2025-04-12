@@ -1,0 +1,2 @@
+# Base requirements are in common/requirements.txt
+# SDXL-specific requirements 
