@@ -63,15 +63,29 @@ def process_flux_latents(flux_pipeline, latents):
                     raise e
                     
             elif latents.dim() == 3:
-                # Handle 3D latents with shape [1, 4096, 64]
+                # Handle 3D latents with shape [1, H*W, C]
                 print(f"Processing 3D latents with shape {latents.shape}")
                 
-                # For 3D latents, we'll create a color visualization
-                # Reshape to [64, 64, 64] since 4096 = 64x64
-                latents_reshaped = latents[0].reshape(64, 64, 64)
+                # Get total pixels and channels
+                total_pixels = latents.shape[1]
+                num_channels = latents.shape[2]
+                
+                # Calculate dimensions that preserve the original aspect ratio
+                # Start with a square approximation
+                base_dim = int(np.sqrt(total_pixels))
+                
+                # Find the closest dimensions that multiply to total_pixels
+                height = base_dim
+                while total_pixels % height != 0 and height > 1:
+                    height -= 1
+                width = total_pixels // height
+                
+                print(f"Original dimensions: {width}x{height} (aspect ratio: {width/height:.2f}:1)")
+                
+                # Reshape to [height, width, channels]
+                latents_reshaped = latents[0].reshape(height, width, num_channels)
                 
                 # Take the first 3 channels for RGB visualization
-                # If we have more channels, we can use PCA or other methods to reduce to 3 channels
                 rgb_channels = latents_reshaped[:, :, :3]
                 
                 # Convert to numpy array and normalize each channel independently to 0-1 range
@@ -87,13 +101,25 @@ def process_flux_latents(flux_pipeline, latents):
                 rgb_image = (rgb_channels * 255).astype(np.uint8)
                 image = Image.fromarray(rgb_image)
                 
-                # Resize to a reasonable size
-                image = image.resize((512, 512), Image.LANCZOS)
+                # Calculate target size maintaining the original aspect ratio
+                max_size = 1024
+                aspect_ratio = width / height
+                if width > height:
+                    target_width = max_size
+                    target_height = int(max_size / aspect_ratio)
+                else:
+                    target_height = max_size
+                    target_width = int(max_size * aspect_ratio)
                 
-                # Add text overlay
+                # Resize maintaining aspect ratio
+                image = image.resize((target_width, target_height), Image.LANCZOS)
+                
+                # Add text overlay with resolution info
                 from PIL import ImageDraw
                 draw = ImageDraw.Draw(image)
-                draw.text((10, 10), f"Progress: Latent shape {latents.shape}", fill=(255, 255, 255))
+                draw.text((10, 10), f"Original: {width}x{height}", fill=(255, 255, 255))
+                draw.text((10, 30), f"Aspect: {aspect_ratio:.2f}:1", fill=(255, 255, 255))
+                draw.text((10, 50), f"Display: {target_width}x{target_height}", fill=(255, 255, 255))
                 
             else:
                 print(f"Unexpected tensor dimension: {latents.dim()}")
