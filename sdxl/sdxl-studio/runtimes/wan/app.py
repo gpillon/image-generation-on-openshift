@@ -65,6 +65,16 @@ class WanApp(BaseApp):
         
         _log.info(f"Starting background queue processing with {self.generation_workers} workers")
 
+        # Load model at startup
+        try:
+            _log.info("Preloading WAN model")
+            self.pipeline.load()
+            _log.info("WAN model preloaded successfully")
+        except Exception as e:
+            _log.error(f"Error preloading WAN model: {e}")
+            import traceback
+            _log.error(traceback.format_exc())
+
         # Set up worker tasks
         worker_tasks = []
         for i in range(self.generation_workers):
@@ -96,6 +106,9 @@ class WanApp(BaseApp):
                     queue_list.remove(job.id)
                 await self.notify_all_queue_positions()
 
+                # Get the current event loop for callbacks to use
+                loop = asyncio.get_running_loop()
+
                 # Set up callback functions for progress reporting
                 def callback_func_base(_pipe, step, _timestep, callback_kwargs):
                     if step % 5 == 0 or step == 1:
@@ -122,14 +135,16 @@ class WanApp(BaseApp):
                             except Exception as e:
                                 _log.error(f"Error processing latents: {e}")
 
-                        # Add to the notification queue
-                        asyncio.run_coroutine_threadsafe(
-                            job.notification_queue.put(msg), asyncio.get_event_loop()
+                        # Add to the notification queue using the captured loop
+                        future = asyncio.run_coroutine_threadsafe(
+                            job.notification_queue.put(msg), loop
                         )
+                        future.result()  # Wait for completion to ensure proper ordering
                     return callback_kwargs
 
-                # Process the image
-                pipeline_instance.load()
+                # Process the image - model should already be loaded
+                if not pipeline_instance.is_loaded:
+                    pipeline_instance.load()
                 
                 # Generate the video/animation
                 result = await asyncio.to_thread(

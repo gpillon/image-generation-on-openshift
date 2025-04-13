@@ -22,6 +22,12 @@ def parse_args():
         help="Port number to run the server on",
     )
     parser.add_argument(
+        "--safetensor-fast-load",
+        type=bool,
+        default=bool(os.getenv("SAFETENSOR_FAST_LOAD", "True").lower() in ("true", "1", "t")),
+        help="Enable fast loading of safetensors",
+    )
+    parser.add_argument(
         "--reload",
         type=bool,
         default=bool(os.getenv("RELOAD", "False").lower() in ("true", "1", "t")),

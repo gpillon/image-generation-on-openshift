@@ -35,7 +35,6 @@ nvidia-ml-py==12.570.86
 nvidia-nvjitlink-cu12==12.4.127; python_version >= '3'
 nvidia-nvtx-cu12==12.4.127; python_version >= '3'
 nvitop==1.4.2; python_version >= '3.7'
-optimum==1.24.0; python_version >= '3.9'
 packaging==24.2; python_version >= '3.8'
 pillow==11.1.0; python_version >= '3.9'
 pip==25.0; python_version >= '3.8'
@@ -67,6 +66,3 @@ websockets==14.2; python_version >= '3.9'
 xformers==0.0.29.post1; python_version >= '3.9'
 zipp==3.21.0; python_version >= '3.9'
 
-
-
---extra-index-url https://download.pytorch.org/whl/cu118 

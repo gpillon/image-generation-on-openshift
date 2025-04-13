@@ -120,7 +120,10 @@ class BaseApp:
         # Empty the notification_queue and keep only the last message
         msg = None
         while not job.notification_queue.empty():
-            msg = await job.notification_queue.get()
+            try:
+                msg = await job.notification_queue.get()
+            except Exception as e:
+                _log.error(f"Error getting notification: {e}")
         return msg
     
     async def websocket_endpoint(self, websocket: WebSocket, job_id: str):
@@ -157,9 +160,13 @@ class BaseApp:
 
             # Otherwise, listen for notifications.
             while True:
-                msg = await job.notification_queue.get()
-                await websocket.send_json(msg)
-                if msg.get("status") in ("completed", "error"):
+                try:
+                    msg = await job.notification_queue.get()
+                    await websocket.send_json(msg)
+                    if msg.get("status") in ("completed", "error"):
+                        break
+                except Exception as e:
+                    _log.error(f"Error in websocket communication: {e}")
                     break
 
         except WebSocketDisconnect:
@@ -171,7 +178,10 @@ class BaseApp:
                 del websocket_connections[job_id]
             # Remove the job from the queue, and delete the job if it's completed.
             if job.state in ("completed", "error"):
-                del jobs[job_id]
+                try:
+                    del jobs[job_id]
+                except KeyError:
+                    pass
     
     def get_queue_position(self, job_id: str) -> int:
         """Return the queue position (1-based) of a job, or -1 if not in queue."""
@@ -183,7 +193,7 @@ class BaseApp:
 
         for job_id, connections in websocket_connections.items():
             # Skip jobs that are already being processed or are completed
-            if jobs[job_id].state == "processing" or jobs[job_id].state == "completed":
+            if job_id not in jobs or jobs[job_id].state == "processing" or jobs[job_id].state == "completed":
                 continue
 
             position = self.get_queue_position(job_id)

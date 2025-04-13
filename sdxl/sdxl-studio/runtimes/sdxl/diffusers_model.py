@@ -7,6 +7,7 @@ from diffusers import (StableDiffusionXLImg2ImgPipeline,
 
 import sys
 import os
+import gc
 # Add parent directory to path to import common modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.classes import GenerationRequest
@@ -36,6 +37,7 @@ class DiffusersPipeline:
                 if self.refiner is not None:
                     del self.refiner
                 torch.cuda.empty_cache()
+                gc.collect()
             
             # Setup a different pipeline object depending on model loading method
             if self.single_file_model and self.single_file_model != "":
@@ -99,30 +101,47 @@ class DiffusersPipeline:
                     self.refiner = refiner
             
             # Setup device options
-            if self.device == "cuda":
-                _log.info("Using CUDA: Standard mode")
-                pipeline = pipeline.to("cuda")
-                if self.refiner:
-                    self.refiner = self.refiner.to("cuda")
-            elif self.device == "enable_model_cpu_offload":
-                _log.info("Using CUDA: Model CPU offload mode")
-                pipeline.enable_model_cpu_offload()
-                if self.refiner:
-                    self.refiner.enable_model_cpu_offload()
-            elif self.device == "enable_sequential_cpu_offload":
-                _log.info("Using CUDA: Sequential CPU offload mode")
-                pipeline.enable_sequential_cpu_offload()
-                if self.refiner:
-                    self.refiner.enable_sequential_cpu_offload()
-            elif self.device == "cpu":
-                _log.info("Using CPU: Warning - generation will be very slow")
+            try:
+                if self.device == "cuda":
+                    _log.info("Using CUDA: Standard mode")
+                    if torch.cuda.is_available():
+                        pipeline = pipeline.to("cuda")
+                        if self.refiner:
+                            self.refiner = self.refiner.to("cuda")
+                        # Try to enable optimizations
+                        try:
+                            pipeline.enable_xformers_memory_efficient_attention()
+                            if self.refiner:
+                                self.refiner.enable_xformers_memory_efficient_attention()
+                            _log.info("Enabled xformers memory efficient attention")
+                        except Exception as e:
+                            _log.warning(f"Could not enable xformers: {e}")
+                    else:
+                        _log.warning("CUDA requested but not available, falling back to CPU")
+                        pipeline = pipeline.to("cpu")
+                        if self.refiner:
+                            self.refiner = self.refiner.to("cpu")
+                elif self.device == "enable_model_cpu_offload":
+                    _log.info("Using CUDA: Model CPU offload mode")
+                    pipeline.enable_model_cpu_offload()
+                    if self.refiner:
+                        self.refiner.enable_model_cpu_offload()
+                elif self.device == "enable_sequential_cpu_offload":
+                    _log.info("Using CUDA: Sequential CPU offload mode")
+                    pipeline.enable_sequential_cpu_offload()
+                    if self.refiner:
+                        self.refiner.enable_sequential_cpu_offload()
+                elif self.device == "cpu":
+                    _log.info("Using CPU: Warning - generation will be very slow")
+                    pipeline = pipeline.to("cpu")
+                    if self.refiner:
+                        self.refiner = self.refiner.to("cpu")
+            except Exception as e:
+                _log.error(f"Error setting up device: {e}")
+                _log.info("Falling back to CPU")
                 pipeline = pipeline.to("cpu")
                 if self.refiner:
                     self.refiner = self.refiner.to("cpu")
-            
-            # Setup caching
-            #pipeline.text_encoder.to_bettertransformer()
-            #pipeline.text_encoder_2.to_bettertransformer()
             
             # Set the pipeline
             self.pipeline = pipeline
@@ -148,9 +167,15 @@ class DiffusersPipeline:
         
         # Set up a fixed seed if requested
         seed = getattr(payload, 'seed', None)
-        generator = torch.Generator("cuda")
+        generator = None
         if seed is not None:
-            generator = generator.manual_seed(seed)
+            try:
+                generator = torch.Generator(device=self.device)
+                generator = generator.manual_seed(seed)
+            except Exception as e:
+                _log.warning(f"Error setting seed on device {self.device}: {e}, using CPU generator")
+                generator = torch.Generator()
+                generator = generator.manual_seed(seed)
         
         # Handle additional parameters
         negative_prompt = getattr(payload, 'negative_prompt', None)

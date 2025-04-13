@@ -32,12 +32,15 @@ class FluxModelPipeline:
         self.ready = False
 
     def load(self):
+        if self.ready:
+            _log.info("Flux model already loaded, skipping initialization")
+            return
+            
         _log.info(f"Loading Flux model with settings: model_id={self.model_id}, device={self.device}")
         try:
             # Free up memory
             torch.cuda.empty_cache()
             gc.collect()
-            torch.cuda.empty_cache()
 
             if self.single_file_model and self.single_file_model != "":
                 print ("WARNING: Single file model not yet supported & optimized for Flux, SHOULD NOT BE USED!")
@@ -69,29 +72,44 @@ class FluxModelPipeline:
                 _log.info("Pipeline initialized from single file")
             else:
                 _log.info(f"Loading from pretrained: {self.model_id}")
-                pipeline = FluxPipeline.from_pretrained(
-                    self.model_id,
-                    torch_dtype=torch.float16,
-                    device_map="balanced"  # Only valid option for Flux in diffusers
-                )
+                try:
+                    pipeline = FluxPipeline.from_pretrained(
+                        self.model_id,
+                        torch_dtype=torch.float16,
+                        device_map="balanced"  # Only valid option for Flux in diffusers
+                    )
+                except Exception as e:
+                    _log.error(f"Error loading from {self.model_id}, trying repo_id {self.repo_id}: {e}")
+                    pipeline = FluxPipeline.from_pretrained(
+                        self.repo_id,
+                        torch_dtype=torch.float16,
+                        device_map="balanced"  # Only valid option for Flux in diffusers
+                    )
             
                 _log.info("Pipeline initialized from pretrained")
 
             # Setup optimization
             _log.info("Setting up VAE optimizations")
-            pipeline.vae.enable_slicing()
-            pipeline.vae.enable_tiling()
+            try:
+                pipeline.vae.enable_slicing()
+                pipeline.vae.enable_tiling()
+                _log.info("VAE optimizations enabled: slicing and tiling")
+            except Exception as e:
+                _log.warning(f"Could not enable VAE optimizations: {e}")
             
             # Set device if needed (should be handled by device_map)
-            if self.device == "cpu":
-                _log.info("Moving model to CPU")
-                pipeline.to(torch.device("cpu"))
-            # elif self.device == "enable_model_cpu_offload":     # Seems not working with Flux with device_map="balanced" .. but if not "balanced crashes on my pc.. :("  
-            #     _log.info("Enabling model CPU offload")
-            #     pipeline.enable_model_cpu_offload()
-            # elif self.device == "enable_sequential_cpu_offload": # Seems not working with Flux  with device_map="balanced"   but if not "balanced crashes on my pc.. :("  
-            #     _log.info("Enabling sequential CPU offload")
-            #     pipeline.enable_sequential_cpu_offload()
+            try:
+                if self.device == "cpu":
+                    _log.info("Moving model to CPU")
+                    pipeline.to(torch.device("cpu"))
+                # elif self.device == "enable_model_cpu_offload":     # Seems not working with Flux with device_map="balanced" .. but if not "balanced crashes on my pc.. :("  
+                #     _log.info("Enabling model CPU offload")
+                #     pipeline.enable_model_cpu_offload()
+                # elif self.device == "enable_sequential_cpu_offload": # Seems not working with Flux  with device_map="balanced"   but if not "balanced crashes on my pc.. :("  
+                #     _log.info("Enabling sequential CPU offload")
+                #     pipeline.enable_sequential_cpu_offload()
+            except Exception as e:
+                _log.warning(f"Error setting device: {e}")
             
             self.pipeline = pipeline
             self.ready = True
@@ -113,6 +131,7 @@ class FluxModelPipeline:
             
     def predict(self, payload: GenerationRequest, callback_func_base: callable = None) -> None:
         if not self.ready:
+            _log.info("Model not loaded, loading now")
             self.load()
         
         # Extract parameters from the request
@@ -124,9 +143,18 @@ class FluxModelPipeline:
         
         # Set up a fixed seed if requested
         seed = getattr(payload, 'seed', None)
-        generator = torch.Generator("cuda")
+        generator = None
         if seed is not None:
-            generator = generator.manual_seed(seed)
+            try:
+                # For Flux, always use CPU generator as it doesn't support device generators
+                generator = torch.Generator()
+                if seed is not None:
+                    generator = generator.manual_seed(seed)
+                    _log.info(f"Using seed: {seed}")
+                else:
+                    _log.info("No seed provided, using random seed")
+            except Exception as e:
+                _log.warning(f"Error setting seed: {e}")
         
         # Define a debug callback wrapper
         def debug_callback_wrapper(_pipe, step, _timestep, callback_kwargs):
@@ -153,7 +181,6 @@ class FluxModelPipeline:
                 width=width,
                 guidance_scale=guidance_scale,
                 num_inference_steps=num_inference_steps,
-                # num_inference_steps=4,
                 generator=generator,
                 callback_on_step_end=debug_callback_wrapper if callback_func_base else None
             )

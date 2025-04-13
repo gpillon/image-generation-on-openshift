@@ -22,6 +22,12 @@ class WanArgumentParser(BaseArgumentParser):
             default=os.getenv("MODEL_ID", "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"),
             help="Path to the HuggingFace model ID"
         )
+        self.parser.add_argument(
+            "--safetensor-fast-load",
+            type=bool,
+            default=bool(os.getenv("SAFETENSOR_FAST_LOAD", "True").lower() in ("true", "1", "t")),
+            help="Enable fast loading of safetensors",
+        )
         
         # Video generation parameters
         self.parser.add_argument(
