@@ -16,12 +16,12 @@ class WanArgumentParser(BaseArgumentParser):
     def _add_wan_arguments(self):
         """Add WAN-specific arguments."""
         # Override model-id with WAN-specific default
-        self.parser.add_argument(
-            "--model-id", 
-            type=str, 
-            default=os.getenv("MODEL_ID", "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"),
-            help="Path to the HuggingFace model ID"
-        )
+        # self.parser.add_argument(
+        #     "--model-id", 
+        #     type=str, 
+        #     default=os.getenv("MODEL_ID", "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"),
+        #     help="Path to the HuggingFace model ID"
+        # )
         self.parser.add_argument(
             "--safetensor-fast-load",
             type=bool,

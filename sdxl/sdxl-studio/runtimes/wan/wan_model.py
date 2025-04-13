@@ -48,42 +48,31 @@ class WanModelPipeline:
             torch.cuda.empty_cache()
             gc.collect()
             
-            try:
-                if self.single_file_model:
-                    _log.info(f"Loading from single file model: {self.single_file_model}")
-                    # Use the correct WanPipeline import (imported directly from diffusers)
-                    self.model = WanPipeline.from_single_file(
-                        self.single_file_model,
-                        torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-                    )
-                else:
-                    _log.info(f"Loading from model ID: {self.model_id}")
-                    self.model = WanPipeline.from_pretrained(
-                        self.model_id,
-                        torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-                    )
-            except Exception as e:
-                _log.error(f"Error loading WAN model from primary source: {e}, attempting fallback")
-                # Fallback to a standard WAN model ID if the specified one fails
-                fallback_model_id = "stabilityai/stable-video-diffusion-img2vid-xt"
-                _log.info(f"Trying fallback model: {fallback_model_id}")
+            if self.single_file_model:
+                _log.info(f"Loading from single file model: {self.single_file_model}")
+                # Use the correct WanPipeline import (imported directly from diffusers)
+                self.model = WanPipeline.from_single_file(
+                    self.single_file_model,
+                    torch_dtype=torch.float16,
+                )
+            else:
+                _log.info(f"Loading from model ID: {self.model_id}")
                 self.model = WanPipeline.from_pretrained(
-                    fallback_model_id,
-                    torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                    self.model_id,
+                    torch_dtype=torch.float16,
                 )
             
             # Move the model to the device
             _log.info(f"Moving model to device: {self.device}")
             try:
-                if self.device == "cuda":
-                    if torch.cuda.is_available():
-                        self.model.to("cuda")
-                        _log.info("Model moved to CUDA successfully")
-                    else:
-                        _log.warning("CUDA requested but not available, using CPU")
-                        self.model.to("cpu")
-                else:
-                    self.model.to(self.device)
+                # Move to the appropriate device
+                if self.device == "cpu":
+                    _log.info("Moving model to CPU")
+                    self.model = self.model.to("cpu")
+                elif self.device == "cuda":
+                    _log.info("Moving model to CUDA")
+                    self.model = self.model.to("cuda")
+
             except Exception as e:
                 _log.error(f"Error moving model to device {self.device}: {e}, falling back to CPU")
                 try:
@@ -118,22 +107,10 @@ class WanModelPipeline:
             self.load()
         
         # Set seed for reproducibility
-        generator = None
-        if request.seed is not None:
-            try:
-                generator = torch.Generator(device=self.device).manual_seed(request.seed)
-                _log.info(f"Using provided seed: {request.seed}")
-            except Exception as e:
-                _log.warning(f"Error setting seed on device {self.device}: {e}, using CPU generator")
-                seed = request.seed
-                generator = torch.Generator().manual_seed(seed)
-        else:
-            seed = random.randint(0, 2**32 - 1)
-            _log.info(f"Using random seed: {seed}")
-            try:
-                generator = torch.Generator(device=self.device).manual_seed(seed)
-            except:
-                generator = torch.Generator().manual_seed(seed)
+        generator = torch.Generator("cpu")
+        seed = getattr(request, 'seed', None)
+        if seed is not None:
+            generator = generator.manual_seed(seed)
         
         _log.info(f"Generating video with prompt: '{request.prompt}'")
         
@@ -141,33 +118,26 @@ class WanModelPipeline:
         num_frames = getattr(request, "num_frames", self.num_frames)
         fps = getattr(request, "fps", self.fps)
         
-        # Create a callback object if a callback function is provided
-        callback = None
-        if callback_function:
-            try:
-                from diffusers.utils import is_accelerate_available
-                if is_accelerate_available():
-                    from diffusers.utils import WanModelOutputCallback
-                    callback = WanModelOutputCallback(callback_function)
-                    _log.info("Using WanModelOutputCallback for progress updates")
-            except Exception as e:
-                _log.warning(f"Error setting up callback: {e}")
+        # Create a wrapper for the callback function
+        def callback_wrapper(_pipe, step, _timestep, callback_kwargs):
+            _log.debug(f"WAN step: {step}")
+            if callback_function:
+                return callback_function(_pipe, step, _timestep, callback_kwargs)
+            return callback_kwargs
         
-        # Generate the video frames
         try:
             _log.info("Starting WAN model inference")
+            # Call the WanPipeline using only parameters that it supports
             output = self.model(
                 prompt=request.prompt,
                 negative_prompt=request.negative_prompt,
                 height=request.height,
                 width=request.width,
-                num_inference_steps=request.num_inference_steps,
-                guidance_scale=request.guidance_scale,
-                output_type="pt",  # Return pytorch tensors
                 num_frames=num_frames,
+                guidance_scale=request.guidance_scale,
+                num_inference_steps=request.num_inference_steps,
                 generator=generator,
-                callback=callback,
-                callback_steps=1
+                callback_on_step_end=callback_wrapper  # Use wrapper to handle callback safely
             )
             
             # Convert the pytorch tensor video frames to a video file

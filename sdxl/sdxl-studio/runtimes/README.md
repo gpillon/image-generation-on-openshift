@@ -57,7 +57,7 @@ python runtimes/flux/app.py
 
 # Run WAN runtime
 cd sdxl/sdxl-studio
-python runtimes/wan/app.py
+python runtimes/wan/app.py --model-id=Wan-AI/Wan2.1-T2V-1.3B-Diffusers
 ```
 
 ## Configuration

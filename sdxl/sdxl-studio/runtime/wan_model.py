@@ -59,9 +59,9 @@ class WanModelPipeline:
             if self.device == "cpu":
                 _log.info("Moving model to CPU")
                 pipeline = pipeline.to("cpu")
-            else:
+            elif self.device == "cuda":
                 _log.info("Moving model to CUDA")
-                # pipeline = pipeline.to("cuda")
+                pipeline = pipeline.to("cuda")
 
             pipeline.enable_model_cpu_offload()
             self.pipeline = pipeline

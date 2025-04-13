@@ -162,6 +162,15 @@ class BaseApp:
             while True:
                 try:
                     msg = await job.notification_queue.get()
+                    
+                    # Check if any field in the message is a PIL Image and convert it to base64
+                    for key in msg:
+                        if isinstance(msg[key], Image.Image):
+                            img_bytes = io.BytesIO()
+                            msg[key].save(img_bytes, format="PNG")
+                            img_bytes.seek(0)
+                            msg[key] = base64.b64encode(img_bytes.read()).decode("utf-8")
+                    
                     await websocket.send_json(msg)
                     if msg.get("status") in ("completed", "error"):
                         break
