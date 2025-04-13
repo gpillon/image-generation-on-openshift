@@ -92,6 +92,10 @@ class BaseApp:
         # Notify all connected clients about queue changes
         await self.notify_all_queue_positions()
 
+        await job.notification_queue.put(
+            {"status": "processing", "message": "Job is processing.", "job_id": job.id}
+        )
+
         response = GenerationResponse(job_id=job_id)
         return response
     
@@ -108,11 +112,11 @@ class BaseApp:
         # Get queue position
         position = self.get_queue_position(job_id)
         if position > 0:
-            return {"status": "queued", "position": position}
+            return {"status": "queued", "position": position, "job_id": job_id}
 
         # If the job is already completed, return the result immediately.
         if job.state == "completed":
-            result = {"status": "completed", "image": job.result}
+            result = {"status": "completed", "image": job.result, "job_id": job_id}
             del jobs[job_id]
             return result
 
@@ -124,6 +128,11 @@ class BaseApp:
                 msg = await job.notification_queue.get()
             except Exception as e:
                 _log.error(f"Error getting notification: {e}")
+        
+        # Add job_id to the message
+        if msg:
+            msg["job_id"] = job_id
+        
         return msg
     
     async def websocket_endpoint(self, websocket: WebSocket, job_id: str):
@@ -171,6 +180,9 @@ class BaseApp:
                             img_bytes.seek(0)
                             msg[key] = base64.b64encode(img_bytes.read()).decode("utf-8")
                     
+                    # Add job_id to each message
+                    msg["job_id"] = job_id
+                    
                     await websocket.send_json(msg)
                     if msg.get("status") in ("completed", "error"):
                         break
@@ -206,7 +218,7 @@ class BaseApp:
                 continue
 
             position = self.get_queue_position(job_id)
-            message = {"status": "queued", "position": position}
+            message = {"status": "queued", "position": position, "job_id": job_id}
             for ws in connections:
                 try:
                     await ws.send_json(message)

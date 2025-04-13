@@ -5,7 +5,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 import os
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -122,6 +122,7 @@ class WanApp(BaseApp):
                             "progress": progress,
                             "step": step,
                             "total_steps": total_steps,
+                            "job_id": job.id
                         }
 
                         # If latents are available in the callback, process and send them
@@ -159,11 +160,27 @@ class WanApp(BaseApp):
                     job.result = result
                     job.state = "completed"
                     
-                    # Notify clients of completion, with a video flag
+                    # Get frame count and fps from request
+                    fps = getattr(job.request, 'fps', 15)
+                    num_frames = getattr(job.request, 'num_frames', 81)
+                    duration = num_frames / fps if fps > 0 else 0
+                    
+                    # Notify clients of video ready, matching the old format
+                    video_info = {
+                        "status": "video_ready",
+                        "video_path": result,
+                        "fps": fps,
+                        "num_frames": num_frames,
+                        "duration": duration,
+                        "job_id": job.id
+                    }
+                    await job.notification_queue.put(video_info)
+                    
+                    # Then send the completion message
                     completion_msg = {
                         "status": "completed", 
-                        "video": True,
-                        "video_url": f"/video/{job.id}"
+                        "image": "",  # Empty image for video jobs
+                        "job_id": job.id
                     }
                 else:
                     # Convert the PIL image to base64 for sending over JSON
@@ -181,7 +198,7 @@ class WanApp(BaseApp):
                     job.state = "completed"
 
                     # Notify clients of completion
-                    completion_msg = {"status": "completed", "image": img_str}
+                    completion_msg = {"status": "completed", "image": img_str, "job_id": job.id}
                 
                 await job.notification_queue.put(completion_msg)
                 _log.info(f"Job {job.id} completed successfully")
@@ -191,9 +208,58 @@ class WanApp(BaseApp):
                 import traceback
                 _log.error(traceback.format_exc())
 
+                # Check if a video was generated despite the error, similar to original implementation
+                try:
+                    video_path = "/tmp/temp_output.mp4"
+                    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+                        # Get frame count and fps from request
+                        fps = getattr(job.request, 'fps', 15)
+                        num_frames = getattr(job.request, 'num_frames', 81)
+                        
+                        # Send video ready notification with error flag
+                        video_info = {
+                            "status": "video_ready",
+                            "video_path": video_path,
+                            "fps": fps,
+                            "num_frames": num_frames,
+                            "error": "Preview failed but video was generated",
+                            "job_id": job.id
+                        }
+                        await job.notification_queue.put(video_info)
+                        _log.info(f"Video ready despite error: {video_path}")
+                        
+                        # Create a placeholder image for preview
+                        placeholder = Image.new('RGB', (480, 480), color=(100, 150, 200))
+                        draw = ImageDraw.Draw(placeholder)
+                        draw.text((20, 20), "Video generation completed", fill=(255, 255, 255))
+                        draw.text((20, 50), "But preview creation failed", fill=(255, 255, 255))
+                        draw.text((20, 80), f"Error: {str(e)[:50]}", fill=(255, 255, 255))
+                        
+                        # Save placeholder as image preview
+                        img_bytes = io.BytesIO()
+                        placeholder.save(img_bytes, format="PNG")
+                        img_bytes.seek(0)
+                        encoded_image = base64.b64encode(img_bytes.read()).decode()
+                        
+                        # Set as result and mark job as completed with warning
+                        job.result = video_path
+                        job.state = "completed"
+                        await job.notification_queue.put({
+                            "status": "completed",
+                            "image": encoded_image,
+                            "processing_time": time.time() - time.time(),  # Not tracking time in this implementation
+                            "warning": f"Preview failed but video was generated: {str(e)}",
+                            "job_id": job.id
+                        })
+                        _log.info(f"Worker completed job {job.id} with preview error")
+                        job_queue.task_done()
+                        continue
+                except Exception as inner_e:
+                    _log.error(f"Error handling video fallback: {inner_e}")
+
                 # Update job state and notify clients of error
                 job.state = "error"
-                error_msg = {"status": "error", "message": str(e)}
+                error_msg = {"status": "error", "message": str(e), "job_id": job.id}
                 await job.notification_queue.put(error_msg)
 
             finally:
@@ -240,10 +306,15 @@ class WanApp(BaseApp):
         """
         from common.app_base import jobs
         
-        if job_id not in jobs or not jobs[job_id].result or not os.path.exists(jobs[job_id].result):
-            raise HTTPException(status_code=404, detail="Video file not found")
+        # First check if the job has a result path
+        if job_id in jobs and jobs[job_id].result and os.path.exists(jobs[job_id].result):
+            video_path = jobs[job_id].result
+        else:
+            # Fallback to the fixed path as used in the original implementation
+            video_path = "/tmp/temp_output.mp4"
         
-        video_path = jobs[job_id].result
+        if not os.path.exists(video_path):
+            raise HTTPException(status_code=404, detail="Video file not found")
         
         def iterfile():
             with open(video_path, mode="rb") as file_like:

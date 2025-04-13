@@ -145,10 +145,11 @@ class SDXLApp(BaseApp):
 
                         # Send progress update
                         msg = {
-                            "status": "processing",
+                            "status": "progress",
                             "progress": progress,
                             "step": step,
                             "total_steps": total_steps,
+                            "job_id": job.id,
                         }
 
                         # If latents are available in the callback, process and send them
@@ -156,7 +157,7 @@ class SDXLApp(BaseApp):
                             try:
                                 latents = callback_kwargs["latents"]
                                 latent_img = process_latents(pipeline_instance, latents)
-                                msg["latent_image"] = latent_img
+                                msg["image"] = latent_img
                             except Exception as e:
                                 _log.error(f"Error processing latents: {e}")
 
@@ -181,6 +182,7 @@ class SDXLApp(BaseApp):
                             "progress": progress,
                             "step": step,
                             "total_steps": total_steps,
+                            "job_id": job.id,
                         }
 
                         # Add to the notification queue using the captured loop
@@ -217,7 +219,7 @@ class SDXLApp(BaseApp):
                 job.state = "completed"
 
                 # Notify clients of completion
-                completion_msg = {"status": "completed", "image": img_str}
+                completion_msg = {"status": "completed", "image": img_str, "job_id": job.id}
                 await job.notification_queue.put(completion_msg)
 
                 _log.info(f"Job {job.id} completed successfully")
@@ -229,7 +231,7 @@ class SDXLApp(BaseApp):
 
                 # Update job state and notify clients of error
                 job.state = "error"
-                error_msg = {"status": "error", "message": str(e)}
+                error_msg = {"status": "error", "message": str(e), "job_id": job.id}
                 await job.notification_queue.put(error_msg)
 
             finally:

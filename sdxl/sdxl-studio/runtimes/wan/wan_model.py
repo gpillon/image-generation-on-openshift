@@ -143,9 +143,8 @@ class WanModelPipeline:
             # Convert the pytorch tensor video frames to a video file
             frames = output.frames
             
-            # Create a temporary file to save the video
-            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_file:
-                video_path = temp_file.name
+            # Use fixed path for video output instead of a temporary file
+            video_path = "/tmp/temp_output.mp4"
             
             # Convert frames to images and save as video
             frame_pil_images = []
